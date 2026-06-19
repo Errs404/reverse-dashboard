@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Docker - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div>
+      <p class="eyebrow">Container manager</p>
+      <h1>Docker</h1>
+      <p class="page-subtitle">Monitor containers, inspect exposed ports, restart workloads, and review logs.</p>
+    </div>
+    <button class="ghost" onclick="loadDocker()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+  </header>
+
+  <section class="summary-strip" aria-label="Docker summary">
+    <article class="mini-stat"><span class="material-symbols-outlined">deployed_code</span><div><strong id="dockerSummaryStatus">Checking</strong><small>Docker connection</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">view_list</span><div><strong id="dockerContainerCount">-</strong><small>Visible containers</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">verified_user</span><div><strong>Audited</strong><small>Actions logged</small></div></article>
+  </section>
+
+  <section class="docker-card-grid" id="dockerCardGrid" aria-label="Container cards"></section>
+
+  <section class="card data-panel">
+    <div class="toolbar panel-toolbar">
+      <div class="toolbar-title"><span class="material-symbols-outlined">dns</span><strong>Container inventory</strong></div>
+      <div id="dockerStatus" class="notice">Checking Docker...</div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Image</th><th>Status</th><th>Ports</th><th>Actions</th></tr></thead><tbody id="dockerRows"></tbody></table></div>
+  </section>
+</section>
+<dialog id="logDialog"><form method="dialog" class="editor-box"><h2>Container logs</h2><pre id="logContent" class="log-box"></pre><button class="primary"><span class="material-symbols-outlined">close</span>Close</button></form></dialog>
+{% endblock %}
+{% block scripts %}<script>initDocker();</script>{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Audit - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div>
+      <p class="eyebrow">Security trail</p>
+      <h1>Audit Logs</h1>
+      <p class="page-subtitle">Review authentication, permission, settings, Docker, and file activity.</p>
+    </div>
+    <button class="ghost" onclick="loadAudit()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+  </header>
+
+  <section class="summary-strip" aria-label="Audit summary">
+    <article class="mini-stat"><span class="material-symbols-outlined">history</span><div><strong id="auditLineCount">-</strong><small>Loaded events</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">security</span><div><strong>Protected</strong><small>Settings permission</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">terminal</span><div><strong>Plain text</strong><small>Append-only log</small></div></article>
+  </section>
+
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">receipt_long</span><h2>Recent events</h2></div><pre id="auditLogs" class="log-box">Loading...</pre></section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initAudit();</script>{% endblock %}

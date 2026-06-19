@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Storage - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div><p class="eyebrow">Storage telemetry</p><h1>Storage</h1><p class="page-subtitle">Review root disk usage, mounted partitions, filesystem types, and remaining capacity.</p></div>
+    <button class="ghost" onclick="loadStorage()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+  </header>
+  <section class="summary-strip">
+    <article class="mini-stat"><span class="material-symbols-outlined">hard_drive</span><div><strong id="storageRootUsed">-</strong><small>Root used</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">inventory_2</span><div><strong id="storageRootFree">-</strong><small>Root free</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">database</span><div><strong id="storagePartitionCount">-</strong><small>Partitions</small></div></article>
+  </section>
+  <section class="card data-panel root-storage-card"><div class="panel-heading"><span class="material-symbols-outlined">speed</span><h2>Root usage</h2></div><div class="storage-root-meter"><div class="health-ring storage-ring" id="storageRootRing" style="--score:0"><strong id="storageRootPercent">-</strong><span>Used</span></div><div><p id="storageRootDetail">Waiting for storage telemetry...</p><span class="telemetry-bar"><i id="storageRootBar"></i></span></div></div></section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">view_list</span><h2>Mounted partitions</h2></div><div class="table-wrap"><table><thead><tr><th>Device</th><th>Mountpoint</th><th>Type</th><th>Used</th><th>Total</th><th>Usage</th></tr></thead><tbody id="storageRows"></tbody></table></div></section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initStorage();</script>{% endblock %}

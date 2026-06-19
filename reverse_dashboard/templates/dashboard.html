@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="telemetry-grid" aria-label="Live telemetry summary">
+  <article class="telemetry-card"><div><span class="material-symbols-outlined">schedule</span><small>Uptime</small></div><strong id="uptimeMetric">-</strong><em id="bootMetric">Since boot</em></article>
+  <article class="telemetry-card"><div><span class="material-symbols-outlined">monitor_heart</span><small>Monitoring</small></div><strong id="monitoringMetric">Live</strong><em id="monitoringIntervalMetric">4s refresh</em></article>
+  <article class="telemetry-card"><div><span class="material-symbols-outlined">memory</span><small>RAM</small></div><strong id="ramMetric">-</strong><em id="ramMetricDetail">-</em><span class="telemetry-bar"><i id="ramMetricBar"></i></span></article>
+  <article class="telemetry-card"><div><span class="material-symbols-outlined">hard_drive</span><small>Disk</small></div><strong id="diskMetric">-</strong><em id="diskMetricDetail">-</em><span class="telemetry-bar"><i id="diskMetricBar"></i></span></article>
+  <article class="telemetry-card"><div><span class="material-symbols-outlined">lan</span><small>Network</small></div><strong id="networkMetric">-</strong><em id="networkMetricDetail">RX / TX</em></article>
+  <article class="telemetry-card"><div><span class="material-symbols-outlined">speed</span><small>CPU Load</small></div><strong id="cpuMetric">-</strong><em id="cpuMetricDetail">Logical cores</em><span class="telemetry-bar"><i id="cpuMetricBar"></i></span></article>
+</section>
+
+<section class="single-server-grid" aria-label="Single server monitoring">
+  <article class="card host-health-card">
+    <div class="panel-heading"><span class="material-symbols-outlined">host</span><h2>Current Server Health</h2></div>
+    <div class="health-score-wrap">
+      <div class="health-ring" id="healthRing" style="--score:0"><strong id="healthScore">-</strong><span>Health</span></div>
+      <div class="health-copy">
+        <p id="healthStatusText">Waiting for telemetry...</p>
+        <small id="healthStatusDetail">CPU, RAM, Disk, and process pressure are evaluated every refresh.</small>
+      </div>
+    </div>
+    <div class="health-checks">
+      <span id="cpuCheck" class="status-chip">CPU -</span>
+      <span id="ramCheck" class="status-chip">RAM -</span>
+      <span id="diskCheck" class="status-chip">Disk -</span>
+      <span id="processCheck" class="status-chip">Processes -</span>
+    </div>
+  </article>
+
+  <article class="card resource-chart-card">
+    <div class="card-title-row"><div><div class="card-label">Resource Monitoring</div><small>Real CPU, RAM, Disk trend from this server</small></div><span class="notice"><span class="material-symbols-outlined">sync</span>Live</span></div>
+    <div class="resource-chart" id="resourceChart" aria-label="CPU RAM Disk resource chart">
+      <svg viewBox="0 0 720 260" preserveAspectRatio="none">
+        <path class="grid-path" d="M0 52H720M0 104H720M0 156H720M0 208H720M120 0V260M240 0V260M360 0V260M480 0V260M600 0V260" />
+        <path id="cpuTrendPath" class="trend-line cpu" d="" />
+        <path id="ramTrendPath" class="trend-line ram" d="" />
+        <path id="diskTrendPath" class="trend-line disk" d="" />
+      </svg>
+    </div>
+    <div class="chart-legend"><span><i class="cpu"></i>CPU</span><span><i class="ram"></i>RAM</span><span><i class="disk"></i>Disk</span></div>
+  </article>
+
+  <article class="card network-card">
+    <div class="panel-heading"><span class="material-symbols-outlined">lan</span><h2>Network Throughput</h2></div>
+    <div class="network-split">
+      <div><small>Received</small><strong id="networkRxMetric">-</strong></div>
+      <div><small>Sent</small><strong id="networkTxMetric">-</strong></div>
+    </div>
+    <div class="mini-spark network-spark" id="networkSpark" aria-hidden="true"></div>
+  </article>
+
+  <article class="card system-card single-system-card">
+    <div class="panel-heading"><span class="material-symbols-outlined">developer_board</span><h2>System Identity</h2></div>
+    <dl class="kv" id="systemInfo"></dl>
+  </article>
+
+  <article class="card process-card single-process-card">
+    <div class="panel-heading"><span class="material-symbols-outlined">memory_alt</span><h2>Top Processes</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>PID</th><th>Name</th><th>CPU</th><th>RAM</th></tr></thead><tbody id="processRows"></tbody></table></div>
+  </article>
+</section>
+{% endblock %}
+{% block scripts %}<script>initDashboard();</script>{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Security - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div><p class="eyebrow">Access control</p><h1>Security</h1><p class="page-subtitle">Review account posture, role distribution, lockout policy, session timeout, and recent audit events.</p></div>
+    <button class="ghost" onclick="loadSecurity()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+  </header>
+  <section class="summary-strip">
+    <article class="mini-stat"><span class="material-symbols-outlined">group</span><div><strong id="securityUserTotal">-</strong><small>Users</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">lock_clock</span><div><strong id="securityTimeout">-</strong><small>Session timeout</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">block</span><div><strong id="securityLocked">-</strong><small>Locked sources</small></div></article>
+  </section>
+  <section class="grid two-col workspace-grid">
+    <article class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">admin_panel_settings</span><h2>Security posture</h2></div><div id="securityPosture" class="security-posture"></div></article>
+    <article class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">badge</span><h2>Role distribution</h2></div><div id="roleCards" class="role-card-grid"></div></article>
+  </section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">receipt_long</span><h2>Recent audit events</h2></div><pre id="securityAuditLogs" class="log-box">Loading...</pre></section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initSecurity();</script>{% endblock %}

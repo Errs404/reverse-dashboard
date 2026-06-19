@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Terminal - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="terminal-workbench">
+  <header class="terminal-topbar">
+    <a class="term-home" href="{{ url_for('pages.dashboard') }}" aria-label="Back to dashboard"><span class="material-symbols-outlined">home</span></a>
+    <h1><span class="material-symbols-outlined">terminal</span>Terminal</h1>
+    <div class="terminal-tabs" id="terminalTabs">
+      <button class="terminal-tab active" type="button"><span class="material-symbols-outlined">terminal</span>Terminal 1<span class="material-symbols-outlined close">close</span></button>
+      <button class="term-icon-btn" type="button" aria-label="New tab"><span class="material-symbols-outlined">add</span></button>
+    </div>
+    <button class="term-icon-btn" type="button" onclick="openTerminalCommands()" aria-label="Custom commands"><span class="material-symbols-outlined">settings</span></button>
+  </header>
+
+  <section class="quick-command-panel" aria-label="Quick commands">
+    <div class="quick-row"><span class="quick-label"><span class="material-symbols-outlined">dns</span>System</span><button data-command="uptime">uptime</button><button data-command="top -b -n 1">top</button><button data-command="df -h">df -h</button><button data-command="free">free</button><button data-command="ps aux">ps aux</button></div>
+    <div class="quick-row"><span class="quick-label"><span class="material-symbols-outlined">deployed_code</span>Docker</span><button data-command="docker ps">ps</button><button data-command="docker ps -a">ps -a</button><button data-command="docker stats --no-stream">stats</button><button data-command="docker images">images</button></div>
+    <div class="quick-row"><span class="quick-label"><span class="material-symbols-outlined">lan</span>Network</span><button data-command="ss -tulpn">ss</button><button data-command="ip a">ip a</button><button data-command="hostname">hostname</button></div>
+    <div class="quick-row"><span class="quick-label"><span class="material-symbols-outlined">receipt_long</span>Logs</span><button data-command="journalctl -n 80">journal</button><button data-command="dmesg">dmesg</button><button data-command="tail /var/log/syslog">syslog</button></div>
+    <div class="quick-row"><span class="quick-label"><span class="material-symbols-outlined">apps</span>Runtime</span><button data-command="pm2 jlist">pm2</button><button data-command="nginx -t">nginx -t</button><button data-command="systemctl status nginx">nginx status</button></div>
+  </section>
+
+  <section class="terminal-screen-card">
+    <div class="terminal-titlebar"><span>TERMINAL — <b id="terminalSessionTitle">guarded@reverse</b></span><span id="terminalStatusPill" class="status-chip">checking</span></div>
+    <pre id="terminalOutput" class="terminal-output terminal-output-large">Connecting to guarded terminal...</pre>
+    <form id="terminalForm" class="terminal-inline-form">
+      <span class="prompt">$</span>
+      <input id="terminalCommand" class="mono" aria-label="Terminal input" autocomplete="off" placeholder="uptime">
+      <button class="primary" aria-label="Run command"><span class="material-symbols-outlined">keyboard_return</span></button>
+    </form>
+  </section>
+
+  <footer class="terminal-footer">
+    <label>Font:<select id="terminalFontSize"><option>12px</option><option selected>14px</option><option>16px</option><option>18px</option></select></label>
+    <label><input id="terminalReadOnly" type="checkbox">Read-Only</label>
+    <span>Full shell mode • commands are audited</span>
+  </footer>
+</section>
+
+<dialog id="terminalCommandsDialog" class="terminal-dialog"><form method="dialog" class="editor-box"><h2><span class="material-symbols-outlined">terminal</span>Custom Commands</h2><p class="page-subtitle">Add quick commands locally in this browser, one per line: name=command</p><textarea id="terminalCustomCommands" placeholder="Example:\nDisk=df -h\nNginx Test=nginx -t\nPM2 List=pm2 jlist"></textarea><div class="actions"><button class="ghost">Cancel</button><button class="primary" value="save" id="saveTerminalCommands"><span class="material-symbols-outlined">save</span>Save</button></div></form></dialog>
+{% endblock %}
+{% block scripts %}<script>initTerminal();</script>{% endblock %}

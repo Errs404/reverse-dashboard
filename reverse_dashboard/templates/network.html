@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Network - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div><p class="eyebrow">Network telemetry</p><h1>Network</h1><p class="page-subtitle">Inspect host interfaces, traffic counters, packet totals, addresses, errors, and drops.</p></div>
+    <button class="ghost" onclick="loadNetwork()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+  </header>
+  <section class="summary-strip">
+    <article class="mini-stat"><span class="material-symbols-outlined">download</span><div><strong id="networkTotalRx">-</strong><small>Total received</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">upload</span><div><strong id="networkTotalTx">-</strong><small>Total sent</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">hub</span><div><strong id="networkIfaceCount">-</strong><small>Interfaces</small></div></article>
+  </section>
+  <section id="networkCards" class="phase-card-grid"></section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">lock_open</span><h2>Open firewall port</h2></div><form id="openPortForm" class="terminal-form port-form"><input name="port" type="number" min="1" max="65535" placeholder="8080" required><select name="protocol"><option>tcp</option><option>udp</option></select><button class="primary"><span class="material-symbols-outlined">add_circle</span>Open port</button></form><pre id="firewallOutput" class="log-box compact-log">Firewall output will appear here.</pre></section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">lan</span><h2>Interface details</h2></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Address</th><th>RX</th><th>TX</th><th>Errors/Drops</th></tr></thead><tbody id="networkRows"></tbody></table></div></section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initNetwork();</script>{% endblock %}

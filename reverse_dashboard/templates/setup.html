@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Setup - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <img class="auth-logo logo-img" src="{{ url_for('static', filename='rv-logo.svg') }}" alt="RV">
+  <h1>Setup Owner</h1>
+  <p>Buat akun owner pertama. Password minimal 8 karakter.</p>
+  <form id="setupForm" class="stack">
+    <label>Username<input name="username" value="admin" autocomplete="username" required></label>
+    <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="primary" type="submit">Buat akun</button>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}<script>initSetup();</script>{% endblock %}

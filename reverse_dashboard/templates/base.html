@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <div class="shell">
+    {% if current_user and not fullscreen_layout|default(false) %}
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="{{ url_for('pages.dashboard') }}" aria-label="{{ app_name }} dashboard">
+        <img class="brand-mark logo-img" src="{{ url_for('static', filename='rv-logo.svg') }}" alt="RV">
+        <span class="brand-copy"><strong>{{ app_name }}</strong><small>{{ app_version }}</small></span>
+      </a>
+      <nav>
+        <a class="nav-link {{ 'active' if active == 'dashboard' else '' }}" href="{{ url_for('pages.dashboard') }}" aria-label="Dashboard"><span class="material-symbols-outlined nav-icon">grid_view</span><span class="nav-text">Dashboard</span></a>
+        <a class="nav-link {{ 'active' if active == 'files' else '' }}" href="{{ url_for('pages.files') }}" aria-label="Files"><span class="material-symbols-outlined nav-icon">folder</span><span class="nav-text">Files</span></a>
+        <a class="nav-link {{ 'active' if active == 'docker' else '' }}" href="{{ url_for('pages.docker_page') }}" aria-label="Docker"><span class="material-symbols-outlined nav-icon">deployed_code</span><span class="nav-text">Docker</span></a>
+        <a class="nav-link {{ 'active' if active == 'network' else '' }}" href="{{ url_for('pages.network_page') }}" aria-label="Network"><span class="material-symbols-outlined nav-icon">lan</span><span class="nav-text">Network</span></a>
+        <a class="nav-link {{ 'active' if active == 'storage' else '' }}" href="{{ url_for('pages.storage_page') }}" aria-label="Storage"><span class="material-symbols-outlined nav-icon">database</span><span class="nav-text">Storage</span></a>
+        <a class="nav-link {{ 'active' if active == 'security' else '' }}" href="{{ url_for('pages.security_page') }}" aria-label="Security"><span class="material-symbols-outlined nav-icon">security</span><span class="nav-text">Security</span></a>
+        <a class="nav-link {{ 'active' if active == 'pm2' else '' }}" href="{{ url_for('pages.pm2_page') }}" aria-label="PM2"><span class="material-symbols-outlined nav-icon">apps</span><span class="nav-text">PM2</span></a>
+        <a class="nav-link {{ 'active' if active == 'nginx' else '' }}" href="{{ url_for('pages.nginx_page') }}" aria-label="Nginx"><span class="material-symbols-outlined nav-icon">account_tree</span><span class="nav-text">Nginx</span></a>
+        <a class="nav-link {{ 'active' if active == 'backup' else '' }}" href="{{ url_for('pages.backup_page') }}" aria-label="Backup"><span class="material-symbols-outlined nav-icon">cloud_upload</span><span class="nav-text">Backup</span></a>
+        <a class="nav-link {{ 'active' if active == 'terminal' else '' }}" href="{{ url_for('pages.terminal_page') }}" aria-label="Terminal"><span class="material-symbols-outlined nav-icon">terminal</span><span class="nav-text">Terminal</span></a>
+        <a class="nav-link {{ 'active' if active == 'settings' else '' }}" href="{{ url_for('pages.settings_page') }}" aria-label="Settings"><span class="material-symbols-outlined nav-icon">tune</span><span class="nav-text">Settings</span></a>
+        <a class="nav-link {{ 'active' if active == 'audit' else '' }}" href="{{ url_for('pages.audit_page') }}" aria-label="Audit"><span class="material-symbols-outlined nav-icon">shield</span><span class="nav-text">Audit</span></a>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="nav-link icon-button" type="button" aria-label="Account"><span class="material-symbols-outlined nav-icon">account_circle</span><span class="nav-text">{{ current_user.username }}</span></button>
+        <button class="nav-link icon-button danger" data-logout type="button" aria-label="Logout"><span class="material-symbols-outlined nav-icon">logout</span><span class="nav-text">Logout</span></button>
+      </div>
+    </aside>
+    {% endif %}
+    <main class="content {{ '' if current_user else 'content-auth' }}">
+      {% if current_user and not fullscreen_layout|default(false) %}
+      <header class="topbar" aria-label="Dashboard toolbar">
+        <div class="topbar-left">
+          <h1>{{ 'Dashboard' if active == 'dashboard' else active|default('Dashboard')|title }}</h1>
+          <div class="topbar-search" role="search">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <input type="search" placeholder="Quick search" aria-label="Quick search">
+            <kbd>⌘ K</kbd>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <div class="topbar-user" aria-label="Current user">
+            <span class="material-symbols-outlined">account_circle</span>
+            <div><strong>{{ current_user.username }}</strong><small>{{ current_user.role }}</small></div>
+          </div>
+          <button class="ghost topbar-logout" type="button" data-logout><span class="material-symbols-outlined">logout</span>Logout</button>
+        </div>
+      </header>
+      {% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <div id="toast" class="toast"></div>
+  <script>
+    window.reverseConfig = {
+      fileRoot: {{ file_root|tojson }},
+      filesWritable: {{ files_writable|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

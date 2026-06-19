@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Files - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div>
+      <p class="eyebrow">Host file browser</p>
+      <h1>Files</h1>
+      <p class="page-subtitle">Browse mounted host paths, inspect text files, and keep write actions gated by permissions.</p>
+    </div>
+    <div class="actions path-actions">
+      <label class="sr-label" for="pathInput">Path</label>
+      <input id="pathInput" class="mono" value="{{ file_root }}" aria-label="Path">
+      <button class="primary" onclick="loadFiles(document.getElementById('pathInput').value)"><span class="material-symbols-outlined">folder_open</span>Open</button>
+    </div>
+  </header>
+
+  <section class="summary-strip" aria-label="File browser summary">
+    <article class="mini-stat"><span class="material-symbols-outlined">home_storage</span><div><strong>{{ file_root }}</strong><small>Configured root</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">lock</span><div><strong>{{ 'Writable' if files_writable else 'Read-only' }}</strong><small>Mutation mode</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">rule_folder</span><div><strong>Confined</strong><small>Path traversal guard</small></div></article>
+  </section>
+
+  <section class="card data-panel">
+    <nav id="fileBreadcrumb" class="file-breadcrumb" aria-label="Current file path"></nav>
+    <div class="toolbar panel-toolbar">
+      <div class="toolbar-title"><span class="material-symbols-outlined">folder_managed</span><strong>Directory contents</strong><small id="fileCountSummary">-</small></div>
+      <div class="toolbar-actions">
+        <button class="ghost" id="upBtn"><span class="material-symbols-outlined">arrow_upward</span>Up</button>
+        {% if files_writable %}
+        <button class="ghost" onclick="newFolder()"><span class="material-symbols-outlined">create_new_folder</span>New folder</button>
+        <button class="ghost" onclick="newFile()"><span class="material-symbols-outlined">note_add</span>New file</button>
+        {% else %}
+        <span class="notice"><span class="material-symbols-outlined">visibility</span>Read-only mode</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Size</th><th>Mode</th><th>Action</th></tr></thead><tbody id="fileRows"></tbody></table></div>
+  </section>
+</section>
+
+<dialog id="editor"><form method="dialog" class="editor-box"><h2 id="editorTitle">Editor</h2><textarea id="editorContent" {{ '' if files_writable else 'readonly' }}></textarea><div class="actions"><button class="ghost"><span class="material-symbols-outlined">close</span>Close</button>{% if files_writable %}<button class="primary" value="save" id="saveEditor"><span class="material-symbols-outlined">save</span>Save</button>{% endif %}</div></form></dialog>
+{% endblock %}
+{% block scripts %}<script>initFiles();</script>{% endblock %}

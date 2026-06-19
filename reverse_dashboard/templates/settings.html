@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Settings - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div>
+      <p class="eyebrow">Configuration</p>
+      <h1>Settings</h1>
+      <p class="page-subtitle">Tune dashboard defaults and manage access roles for operational users.</p>
+    </div>
+    <button class="ghost" onclick="loadSettings()"><span class="material-symbols-outlined">refresh</span>Reload</button>
+  </header>
+
+  <section class="summary-strip" aria-label="Settings summary">
+    <article class="mini-stat"><span class="material-symbols-outlined">settings_suggest</span><div><strong>JSON</strong><small>Persistent settings</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">group</span><div><strong id="settingsUserCount">-</strong><small>Known users</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">timer</span><div><strong id="settingsInterval">-</strong><small>Stats interval</small></div></article>
+  </section>
+
+  <section class="grid two-col workspace-grid">
+    <article class="card form-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">tune</span><h2>General</h2></div>
+      <form id="settingsForm" class="stack">
+        <label>Server name<input name="server_name"></label>
+        <label>Timezone<input name="timezone"></label>
+        <label>Stats interval ms<input name="stats_interval_ms" type="number" min="500"></label>
+        <button class="primary"><span class="material-symbols-outlined">save</span>Save settings</button>
+      </form>
+    </article>
+    <article class="card form-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">manage_accounts</span><h2>Users</h2></div>
+      <div id="userList" class="list"></div>
+      <form id="userForm" class="stack compact">
+        <label>Username<input name="username"></label>
+        <label>Password<input name="password" type="password" minlength="8"></label>
+        <label>Role<select name="role"><option>admin</option><option>operator</option><option>readonly</option></select></label>
+        <button class="ghost"><span class="material-symbols-outlined">person_add</span>Add user</button>
+      </form>
+    </article>
+  </section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initSettings();</script>{% endblock %}

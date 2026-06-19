@@ -1,0 +1,233 @@
+from __future__ import annotations
+
+from flask import Blueprint, jsonify, request, send_file, session
+
+from ..extensions import audit_service, auth_service, backup_service, firewall_service, nginx_service, pm2_service, system_service, terminal_service
+from ..security import login_required, permission_required
+
+bp = Blueprint("api", __name__)
+
+
+@bp.get("/health")
+def health():
+    return jsonify({"ok": True})
+
+
+@bp.get("/me")
+@login_required
+def me():
+    return jsonify({"username": session.get("username"), "role": session.get("role")})
+
+
+@bp.get("/system")
+@login_required
+def system_info():
+    return jsonify(system_service().info())
+
+
+@bp.get("/stats")
+@login_required
+def stats():
+    return jsonify(system_service().summary())
+
+
+@bp.get("/processes")
+@login_required
+def processes():
+    limit = request.args.get("limit", 50, type=int)
+    return jsonify({"processes": system_service().processes(limit=max(1, min(limit, 200)))})
+
+
+@bp.get("/disks")
+@login_required
+def disks():
+    return jsonify({"disks": system_service().disks()})
+
+
+@bp.get("/network")
+@permission_required("network", "view")
+def network():
+    return jsonify(system_service().network())
+
+
+@bp.get("/network/firewall")
+@permission_required("network", "view")
+def firewall_status():
+    return jsonify(firewall_service().status())
+
+
+@bp.post("/network/open-port")
+@permission_required("network", "full")
+def open_port():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = firewall_service().open_port(int(data.get("port", 0)), str(data.get("protocol", "tcp")))
+        audit_service().log("OPEN_PORT", session.get("username", "unknown"), request.remote_addr or "unknown", f"{data.get('port')}/{data.get('protocol', 'tcp')}")
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.get("/storage")
+@permission_required("storage", "view")
+def storage():
+    return jsonify(system_service().storage())
+
+
+@bp.get("/security/summary")
+@permission_required("security", "view")
+def security_summary():
+    return jsonify(system_service().security_summary(auth_service().load()))
+
+
+@bp.get("/audit")
+@permission_required("settings", "view")
+def audit_logs():
+    lines = request.args.get("lines", 200, type=int)
+    return jsonify({"logs": audit_service().tail(max(1, min(lines, 1000)))})
+
+
+@bp.get("/users")
+@permission_required("users", "limited")
+def users():
+    return jsonify({"users": auth_service().list_users()})
+
+
+@bp.post("/users")
+@permission_required("users", "limited")
+def add_user():
+    data = request.get_json(silent=True) or {}
+    try:
+        auth_service().add_user(data.get("username", ""), data.get("password", ""), data.get("role", "readonly"))
+        audit_service().log("USER_CREATED", session.get("username", "unknown"), request.remote_addr or "unknown", data.get("username", ""))
+        return jsonify({"success": True})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.get("/pm2/status")
+@permission_required("pm2", "view")
+def pm2_status():
+    return jsonify(pm2_service().status())
+
+
+@bp.get("/pm2/processes")
+@permission_required("pm2", "view")
+def pm2_processes():
+    return jsonify({"processes": pm2_service().processes()})
+
+
+@bp.post("/pm2/action")
+@permission_required("pm2", "restart")
+def pm2_action():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = pm2_service().action(str(data.get("name", "")), str(data.get("action", "restart")))
+        audit_service().log("PM2_ACTION", session.get("username", "unknown"), request.remote_addr or "unknown", f"{data.get('action')} {data.get('name')}")
+        return jsonify(result)
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/pm2/install")
+@permission_required("pm2", "full")
+def pm2_install():
+    result = pm2_service().install()
+    audit_service().log("PM2_INSTALL", session.get("username", "unknown"), request.remote_addr or "unknown", str(result.get("code")))
+    return jsonify(result)
+
+
+@bp.get("/nginx/status")
+@permission_required("nginx", "view")
+def nginx_status():
+    return jsonify(nginx_service().status())
+
+
+@bp.get("/nginx/test")
+@permission_required("nginx", "view")
+def nginx_test():
+    return jsonify(nginx_service().test_config())
+
+
+@bp.post("/nginx/action")
+@permission_required("nginx", "restart")
+def nginx_action():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = nginx_service().action(str(data.get("action", "reload")))
+        audit_service().log("NGINX_ACTION", session.get("username", "unknown"), request.remote_addr or "unknown", str(data.get("action")))
+        return jsonify(result)
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/nginx/install")
+@permission_required("nginx", "full")
+def nginx_install():
+    result = nginx_service().install()
+    audit_service().log("NGINX_INSTALL", session.get("username", "unknown"), request.remote_addr or "unknown", str(result.get("code")))
+    return jsonify(result)
+
+
+@bp.get("/backup/status")
+@permission_required("backup", "view")
+def backup_status():
+    return jsonify(backup_service().status())
+
+
+@bp.get("/backup/list")
+@permission_required("backup", "view")
+def backup_list():
+    return jsonify({"backups": backup_service().list_backups()})
+
+
+@bp.post("/backup/create")
+@permission_required("backup", "full")
+def backup_create():
+    try:
+        result = backup_service().create()
+        audit_service().log("BACKUP_CREATED", session.get("username", "unknown"), request.remote_addr or "unknown", result.get("name", ""))
+        return jsonify(result)
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.get("/backup/download/<name>")
+@permission_required("backup", "view")
+def backup_download(name: str):
+    try:
+        path = backup_service().path_for(name)
+        return send_file(path, as_attachment=True, download_name=path.name)
+    except (ValueError, FileNotFoundError) as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@bp.post("/backup/gdrive/<name>")
+@permission_required("backup", "full")
+def backup_gdrive_upload(name: str):
+    try:
+        result = backup_service().upload_gdrive(name)
+        audit_service().log("BACKUP_GDRIVE_UPLOAD", session.get("username", "unknown"), request.remote_addr or "unknown", name)
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError, FileNotFoundError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.get("/terminal/status")
+@permission_required("terminal", "full")
+def terminal_status():
+    return jsonify(terminal_service().status())
+
+
+@bp.post("/terminal/run")
+@permission_required("terminal", "full")
+def terminal_run():
+    data = request.get_json(silent=True) or {}
+    command = str(data.get("command", ""))
+    try:
+        result = terminal_service().run(command, int(data.get("timeout", 20) or 20))
+        audit_service().log("TERMINAL_COMMAND", session.get("username", "unknown"), request.remote_addr or "unknown", command)
+        return jsonify(result)
+    except (ValueError, PermissionError) as exc:
+        audit_service().log("TERMINAL_DENIED", session.get("username", "unknown"), request.remote_addr or "unknown", command)
+        return jsonify({"error": str(exc)}), 400

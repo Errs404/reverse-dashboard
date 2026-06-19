@@ -1,0 +1,26 @@
+services:
+  reverse-dashboard:
+    build: .
+    image: reverse-dashboard:2.0-alpha
+    container_name: reverse_dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:5000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret}
+      - DASHBOARD_NAME=Reverse Dashboard
+      - REVERSE_DASHBOARD_DATA=/app/data
+      - HOST_ROOT=/host/root
+      - FILES_READ_ONLY=1
+      - ENABLE_DOCKER=1
+      - ENABLE_HOST_CONTROL=0
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount host read-only by default for safer browsing. Change to rw only if needed.
+      - /:/host/root:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

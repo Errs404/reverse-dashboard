@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Login - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <img class="auth-logo logo-img" src="{{ url_for('static', filename='rv-logo.svg') }}" alt="RV">
+  <h1>Masuk Dashboard</h1>
+  <p>Gunakan akun admin/operator yang sudah dibuat.</p>
+  <form id="loginForm" class="stack">
+    <label>Username<input name="username" autocomplete="username" required></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Login</button>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}<script>initLogin();</script>{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}PM2 - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head"><div><p class="eyebrow">Node process manager</p><h1>PM2</h1><p class="page-subtitle">Detect PM2 on Linux servers, list managed processes, and run guarded restart/reload actions.</p></div><button class="ghost" onclick="loadPM2()"><span class="material-symbols-outlined">refresh</span>Refresh</button></header>
+  <section class="summary-strip"><article class="mini-stat"><span class="material-symbols-outlined">apps</span><div><strong id="pm2Installed">-</strong><small>PM2 installed</small></div></article><article class="mini-stat"><span class="material-symbols-outlined">javascript</span><div><strong id="nodeInstalled">-</strong><small>Node runtime</small></div></article><article class="mini-stat"><span class="material-symbols-outlined">list_alt</span><div><strong id="pm2ProcessCount">-</strong><small>Processes</small></div></article></section>
+  <section id="pm2InstallHint" class="card data-panel install-hint"></section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">download</span><h2>Install PM2</h2></div><p class="page-subtitle">Runs the Linux helper script from this dashboard host. Requires the web server process to have permission.</p><button class="primary" onclick="installPM2()"><span class="material-symbols-outlined">download</span>Install PM2</button><pre id="pm2InstallOutput" class="log-box compact-log">Installer output will appear here.</pre></section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">view_list</span><h2>PM2 processes</h2></div><div class="table-wrap"><table><thead><tr><th>Name</th><th>ID</th><th>Status</th><th>CPU</th><th>Memory</th><th>Restarts</th><th>Actions</th></tr></thead><tbody id="pm2Rows"></tbody></table></div></section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initPM2();</script>{% endblock %}

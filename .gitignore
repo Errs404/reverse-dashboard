@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+data/
+*.log
+.DS_Store
+.playwright-mcp/
+reverse-*.png
