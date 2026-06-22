@@ -1,6 +1,6 @@
 # Reverse Dashboard
 
-Reverse Dashboard adalah rewrite modular dari Eka Dashboard. Target awalnya adalah pondasi yang lebih proper, aman, dan mudah dikembangkan, bukan memindahkan semua fitur lama sekaligus.
+Reverse Dashboard adalah dashboard server berbasis Flask untuk monitoring, pengelolaan file, Docker, dan fitur administrasi host dengan struktur yang aman serta mudah dikembangkan.
 
 ## Fitur v2 alpha
 
@@ -58,17 +58,7 @@ Buka `http://SERVER_IP:8080`.
 - Semua API Docker/File/Settings diproteksi decorator permission.
 - Password memakai `werkzeug.security.generate_password_hash`, bukan SHA-256 polos.
 
-## Migration dari project lama
-
-Project lama monolitik punya banyak fitur host-level: LXD, WireGuard, Nginx threat detection, Samba, backup, mobile backup, app store, terminal. Versi ini belum memindahkan semuanya. Rekomendasi migrasi bertahap:
-
-1. Stabilkan auth, dashboard, files, Docker.
-2. Tambahkan terminal dengan feature flag dan audit ketat.
-3. Tambahkan Nginx/Websites module.
-4. Tambahkan Backup/Mobile Backup.
-5. Tambahkan LXD/VPN hanya setelah permission dan confirmation flow kuat.
-
-## Roadmap migrasi aman
+## Roadmap pengembangan aman
 
 ### Fase 0 - Guardrail sebelum fitur host-level
 
@@ -82,7 +72,7 @@ Project lama monolitik punya banyak fitur host-level: LXD, WireGuard, Nginx thre
 - Perkuat session timeout, user management, dan perubahan password.
 - Lanjutkan hardening Files: root terbatas ke `HOST_ROOT`, read-only mode, dan validasi path.
 - Lanjutkan hardening Docker: batasi operator ke restart, audit semua action, dan tampilkan error Docker yang aman.
-- Tambahkan backup/restore manual untuk `data/security.json`, `settings.json`, dan `audit.log` sebelum migrasi fitur besar.
+- Tambahkan backup/restore manual untuk `data/security.json`, `settings.json`, dan `audit.log` sebelum pengembangan fitur besar.
 
 ### Fase 2 - Terminal dan host command terbatas
 
