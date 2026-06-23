@@ -16,8 +16,13 @@ def create_app(config_object=Config) -> Flask:
 
     CORS(app, supports_credentials=True)
     socketio.init_app(app)
-    from .terminal_socket import register_terminal_socket
-    register_terminal_socket(socketio)
+    try:
+        from .terminal_socket import register_terminal_socket
+    except ModuleNotFoundError:
+        register_terminal_socket = None
+    app.config["TERMINAL_SOCKET_AVAILABLE"] = register_terminal_socket is not None
+    if register_terminal_socket is not None:
+        register_terminal_socket(socketio)
 
     from .blueprints.auth import bp as auth_bp
     from .blueprints.pages import bp as pages_bp
@@ -42,6 +47,7 @@ def create_app(config_object=Config) -> Flask:
             "current_user": current_user(),
             "file_root": str(app.config["HOST_ROOT"]),
             "files_writable": not app.config.get("FILES_READ_ONLY", False),
+            "terminal_socket_available": app.config.get("TERMINAL_SOCKET_AVAILABLE", False),
         }
 
     return app

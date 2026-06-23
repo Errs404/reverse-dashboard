@@ -48,6 +48,12 @@ def database_page():
     return render_template("database.html", active="database")
 
 
+@bp.get("/services")
+@permission_required("services", "view")
+def services_page():
+    return render_template("services.html", active="services")
+
+
 @bp.get("/security")
 @permission_required("security", "view")
 def security_page():

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Services - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head"><div><p class="eyebrow">Systemd manager</p><h1>Services</h1><p class="page-subtitle">Monitor and control common Ubuntu services like Nginx, Docker, database engines, Redis, SSH, UFW, and custom units.</p></div><button class="ghost" onclick="loadServices()"><span class="material-symbols-outlined">refresh</span>Refresh</button></header>
+  <section class="summary-strip"><article class="mini-stat"><span class="material-symbols-outlined">play_circle</span><div><strong id="servicesActiveCount">-</strong><small>Active services</small></div></article><article class="mini-stat"><span class="material-symbols-outlined">settings_power</span><div><strong id="servicesEnabledCount">-</strong><small>Enabled services</small></div></article><article class="mini-stat"><span class="material-symbols-outlined">admin_panel_settings</span><div><strong id="servicesHostControl">-</strong><small>Host control</small></div></article></section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">add_circle</span><h2>Custom service</h2></div><form id="customServiceForm" class="terminal-form port-form"><input name="name" class="mono" placeholder="myapp.service" required><button class="primary"><span class="material-symbols-outlined">search</span>Inspect</button></form></section>
+  <section class="card data-panel"><div class="toolbar panel-toolbar"><div class="toolbar-title"><span class="material-symbols-outlined">settings_applications</span><strong>Service units</strong></div></div><div class="table-wrap"><table><thead><tr><th>Service</th><th>Exists</th><th>Active</th><th>Enabled</th><th>Actions</th></tr></thead><tbody id="serviceRows"></tbody></table></div></section>
+  <section class="card data-panel"><div class="panel-heading"><span class="material-symbols-outlined">receipt_long</span><h2>Service logs</h2></div><pre id="serviceLogs" class="log-box">Select logs from a service.</pre></section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initServices();</script>{% endblock %}

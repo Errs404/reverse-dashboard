@@ -375,6 +375,24 @@ async function loadSecurity(){
 }
 function initSecurity(){ loadSecurity(); }
 
+async function loadServices(extraName = ''){
+  try {
+    const data = await api('/api/services');
+    let services = data.services || [];
+    if (extraName) {
+      const logs = await api(`/api/services/${encodeURIComponent(extraName)}/logs?lines=1`).catch(()=>null);
+      if (!services.some(s => s.name === extraName)) services.push({name: extraName, exists: Boolean(logs), active: '-', enabled: '-'});
+    }
+    setText('#servicesActiveCount', String(services.filter(s => s.active === 'active').length));
+    setText('#servicesEnabledCount', String(services.filter(s => s.enabled === 'enabled').length));
+    setText('#servicesHostControl', data.host_control ? 'Enabled' : 'Disabled');
+    $('#serviceRows').innerHTML = services.map(s => `<tr><td class="mono">${esc(s.name)}</td><td><span class="status-pill ${s.exists ? 'success' : 'warning'}">${s.exists ? 'yes' : 'no'}</span></td><td><span class="status-pill ${s.active === 'active' ? 'success' : 'warning'}">${esc(s.active || '-')}</span></td><td><span class="status-pill ${s.enabled === 'enabled' ? 'success' : 'warning'}">${esc(s.enabled || '-')}</span></td><td><button class="ghost" onclick="serviceAction('${esc(s.name)}','start')">${icon('play_arrow')}Start</button><button class="ghost" onclick="serviceAction('${esc(s.name)}','restart')">${icon('restart_alt')}Restart</button><button class="ghost danger" onclick="serviceAction('${esc(s.name)}','stop')">${icon('stop')}Stop</button><button class="ghost" onclick="serviceLogs('${esc(s.name)}')">${icon('receipt_long')}Logs</button></td></tr>`).join('');
+  } catch(err) { toast(err.message, true); }
+}
+async function serviceAction(name, action){ try{ const result=await api('/api/services/action',{method:'POST',body:JSON.stringify({name, action})}); toast(result.success ? `${name} ${action}` : (result.stderr || 'Action failed'), !result.success); loadServices(); }catch(err){toast(err.message,true);} }
+async function serviceLogs(name){ try{ const result=await api(`/api/services/${encodeURIComponent(name)}/logs?lines=160`); $('#serviceLogs').textContent = result.stdout || result.stderr || 'No logs.'; }catch(err){toast(err.message,true);} }
+function initServices(){ loadServices(); $('#customServiceForm')?.addEventListener('submit', e=>{ e.preventDefault(); const name=new FormData(e.currentTarget).get('name'); loadServices(String(name || '').trim()); }); }
+
 async function loadDatabase(){
   try {
     const data = await api('/api/database/status');
@@ -489,7 +507,7 @@ async function installPM2(){
 
 async function loadNginx(){
   try {
-    const [status, test, siteData] = await Promise.all([api('/api/nginx/status'), api('/api/nginx/test').catch(()=>({success:false, stderr:'Unable to test config'})), api('/api/nginx/sites').catch(()=>({sites:[]}))]);
+    const [status, test, siteData, certData] = await Promise.all([api('/api/nginx/status'), api('/api/nginx/test').catch(()=>({success:false, stderr:'Unable to test config'})), api('/api/nginx/sites').catch(()=>({sites:[]})), api('/api/nginx/certificates').catch(()=>({certificates:[]}))]);
     setText('#nginxInstalled', status.installed ? 'Yes' : 'No');
     setText('#nginxState', status.service_state || 'unknown');
     setText('#nginxTestState', test.success ? 'Valid' : 'Check');
@@ -498,6 +516,8 @@ async function loadNginx(){
     $('#nginxConfigPaths').innerHTML = (status.config_paths || []).map(item => `<div class="list-item"><span>${icon(item.type === 'dir' ? 'folder' : 'description')}${esc(item.path)}</span><strong>${item.exists ? 'exists' : 'missing'}</strong></div>`).join('');
     const rows = $('#nginxSiteRows');
     if (rows) rows.innerHTML = siteData.sites.length ? siteData.sites.map(site => `<tr><td class="mono">${esc(site.name)}</td><td>${esc((site.server_names || []).join(', ') || '-')}</td><td class="mono">${esc((site.proxy_passes || []).join(', ') || '-')}</td><td><span class="status-pill ${site.ssl ? 'success' : 'warning'}">${site.ssl ? 'yes' : 'no'}</span></td><td><span class="status-pill ${site.enabled ? 'success' : 'warning'}">${site.enabled ? 'enabled' : 'disabled'}</span></td><td><button class="ghost" onclick="editNginxSite('${esc(site.name)}')">${icon('edit')}Edit</button><button class="ghost" onclick="nginxSiteAction('${esc(site.name)}','${site.enabled ? 'disable' : 'enable'}')">${icon(site.enabled ? 'toggle_off' : 'toggle_on')}${site.enabled ? 'Disable' : 'Enable'}</button><button class="ghost" onclick="issueNginxSsl('${esc((site.server_names || [site.name])[0])}')">${icon('lock')}SSL</button><button class="ghost danger" onclick="deleteNginxSite('${esc(site.name)}')">${icon('delete')}Delete</button></td></tr>`).join('') : '<tr><td colspan="6">No sites found.</td></tr>';
+    const certRows = $('#nginxCertRows');
+    if (certRows) certRows.innerHTML = (certData.certificates || []).length ? certData.certificates.map(c => `<tr><td>${esc(c.name || '-')}</td><td>${esc((c.domains || []).join(', ') || '-')}</td><td>${esc(c.expiry || '-')}</td><td class="mono">${esc(c.cert_path || '-')}</td></tr>`).join('') : '<tr><td colspan="4">No certbot certificates found.</td></tr>';
   } catch(err) { toast(err.message, true); }
 }
 async function nginxAction(action){ try{ const result = await api('/api/nginx/action',{method:'POST',body:JSON.stringify({action})}); toast(result.success ? `Nginx ${action} sent` : (result.stderr || 'Nginx action failed'), !result.success); loadNginx(); }catch(err){toast(err.message,true);} }
@@ -528,6 +548,7 @@ async function nginxSiteAction(name, action){ try{ await api(`/api/nginx/sites/$
 async function deleteNginxSite(name){ const typed = prompt(`Ketik nama site untuk delete:\n${name}`); if (typed !== name) return; nginxSiteAction(name, 'delete'); }
 async function issueNginxSsl(domain){ if (!domain) return; const ok = confirm(`Issue SSL untuk ${domain}? Domain harus sudah mengarah ke server ini.`); if (!ok) return; try{ const result = await api('/api/nginx/ssl',{method:'POST',body:JSON.stringify({domain})}); toast(result.success ? `SSL issued for ${domain}` : (result.stderr || 'SSL failed'), !result.success); loadNginx(); }catch(err){toast(err.message,true);} }
 async function submitNginxSsl(e){ e.preventDefault(); const domain = new FormData(e.currentTarget).get('domain'); await issueNginxSsl(domain); $('#nginxSslDialog')?.close(); }
+async function renewNginxDryRun(){ const out=$('#nginxRenewOutput'); if(out) out.textContent='Running certbot renew --dry-run...'; try{ const result=await api('/api/nginx/renew-dry-run',{method:'POST',body:JSON.stringify({})}); if(out) out.textContent=`${result.stdout || ''}${result.stderr ? `\n${result.stderr}` : ''}\n[exit ${result.code}]`; toast(result.success ? 'Renew dry-run passed' : 'Renew dry-run failed', !result.success); }catch(err){ if(out) out.textContent=err.message; toast(err.message,true);} }
 
 async function installNginx(){
   const out = $('#nginxInstallOutput');

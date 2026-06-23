@@ -40,4 +40,4 @@
 
 <dialog id="terminalCommandsDialog" class="terminal-dialog"><form method="dialog" class="editor-box"><h2><span class="material-symbols-outlined">terminal</span>Custom Commands</h2><p class="page-subtitle">Add quick commands locally in this browser, one per line: name=command</p><textarea id="terminalCustomCommands" placeholder="Example:\nDisk=df -h\nNginx Test=nginx -t\nPM2 List=pm2 jlist"></textarea><div class="actions"><button class="ghost">Cancel</button><button class="primary" value="save" id="saveTerminalCommands"><span class="material-symbols-outlined">save</span>Save</button></div></form></dialog>
 {% endblock %}
-{% block scripts %}<script src="/socket.io/socket.io.js"></script><script>initTerminal();</script>{% endblock %}
+{% block scripts %}{% if terminal_socket_available %}<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>{% endif %}<script>initTerminal();</script>{% endblock %}

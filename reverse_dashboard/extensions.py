@@ -10,7 +10,7 @@ from .services.file_service import FileService
 from .services.json_store import JsonStore
 from .services.settings_service import SettingsService
 from .services.system_service import SystemService
-from .services.runtime_service import BackupService, FirewallService, NginxService, PM2Service, TerminalService
+from .services.runtime_service import BackupService, FirewallService, NginxService, PM2Service, ServiceManager, TerminalService
 
 
 def store() -> JsonStore:
@@ -69,8 +69,14 @@ def pm2_service() -> PM2Service:
 
 def nginx_service() -> NginxService:
     if "nginx_service" not in g:
-        g.nginx_service = NginxService(current_app.config["ENABLE_NGINX"], current_app.config["ALLOW_RUNTIME_INSTALL"], current_app.config["ENABLE_HOST_CONTROL"], current_app.config["BASE_DIR"])
+        g.nginx_service = NginxService(current_app.config["ENABLE_NGINX"], current_app.config["ALLOW_RUNTIME_INSTALL"], current_app.config["ENABLE_HOST_CONTROL"], current_app.config["BASE_DIR"], current_app.config["LETSENCRYPT_EMAIL"], current_app.config["LETSENCRYPT_STAGING"])
     return g.nginx_service
+
+
+def service_manager() -> ServiceManager:
+    if "service_manager" not in g:
+        g.service_manager = ServiceManager(current_app.config["ENABLE_HOST_CONTROL"])
+    return g.service_manager
 
 
 def backup_service() -> BackupService:

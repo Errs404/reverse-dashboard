@@ -7,6 +7,9 @@ import shutil
 import subprocess
 import tarfile
 import time
+import ssl
+import socket
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -94,11 +97,13 @@ class PM2Service:
 
 
 class NginxService:
-    def __init__(self, enabled: bool = True, allow_install: bool = False, host_control: bool = False, base_dir: Path | None = None):
+    def __init__(self, enabled: bool = True, allow_install: bool = False, host_control: bool = False, base_dir: Path | None = None, letsencrypt_email: str = "", letsencrypt_staging: bool = False):
         self.enabled = enabled
         self.allow_install = allow_install
         self.host_control = host_control
         self.base_dir = base_dir or Path.cwd()
+        self.letsencrypt_email = letsencrypt_email
+        self.letsencrypt_staging = letsencrypt_staging
 
     def status(self) -> dict:
         nginx = shutil.which("nginx")
@@ -235,8 +240,40 @@ class NginxService:
         certbot = shutil.which("certbot")
         if not certbot:
             raise RuntimeError("certbot tidak tersedia")
-        code, out, err = run_cmd([certbot, "--nginx", "-d", domain, "--redirect", "--agree-tos", "--register-unsafely-without-email", "--non-interactive"], timeout=600)
+        args = [certbot, "--nginx", "-d", domain, "--redirect", "--agree-tos", "--non-interactive"]
+        if self.letsencrypt_email:
+            args.extend(["--email", self.letsencrypt_email])
+        else:
+            args.append("--register-unsafely-without-email")
+        if self.letsencrypt_staging:
+            args.append("--staging")
+        code, out, err = run_cmd(args, timeout=600)
         return {"success": code == 0, "stdout": out, "stderr": err, "code": code, "domain": domain}
+
+    def certificates(self) -> dict:
+        certbot = shutil.which("certbot")
+        if not certbot:
+            return {"certbot": None, "certificates": [], "stderr": "certbot not installed"}
+        code, out, err = run_cmd([certbot, "certificates"], timeout=60)
+        return {"certbot": certbot, "code": code, "stdout": out, "stderr": err, "certificates": self._parse_certbot_certificates(out)}
+
+    def renew_dry_run(self) -> dict:
+        certbot = shutil.which("certbot")
+        if not certbot:
+            return {"success": False, "stdout": "", "stderr": "certbot not installed", "code": 127}
+        code, out, err = run_cmd([certbot, "renew", "--dry-run"], timeout=900)
+        return {"success": code == 0, "stdout": out, "stderr": err, "code": code}
+
+    def certificate_probe(self, domain: str) -> dict:
+        domain = self._safe_domain(domain)
+        ctx = ssl.create_default_context()
+        with socket.create_connection((domain, 443), timeout=8) as sock:
+            with ctx.wrap_socket(sock, server_hostname=domain) as ssock:
+                cert = ssock.getpeercert()
+        not_after = cert.get("notAfter", "")
+        expires = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc) if not_after else None
+        days_left = (expires - datetime.now(timezone.utc)).days if expires else None
+        return {"domain": domain, "issuer": cert.get("issuer"), "subject": cert.get("subject"), "not_after": not_after, "days_left": days_left}
 
     def test_config(self) -> dict:
         nginx = shutil.which("nginx")
@@ -294,6 +331,83 @@ class NginxService:
             return "unknown"
         code, out, _ = run_cmd(["systemctl", "is-active", name], timeout=8)
         return out if code == 0 and out else "inactive"
+
+    @staticmethod
+    def _parse_certbot_certificates(output: str) -> list[dict]:
+        certs = []
+        current: dict[str, object] = {}
+        for line in output.splitlines():
+            text = line.strip()
+            if text.startswith("Certificate Name:"):
+                if current:
+                    certs.append(current)
+                current = {"name": text.split(":", 1)[1].strip()}
+            elif text.startswith("Domains:"):
+                current["domains"] = text.split(":", 1)[1].strip().split()
+            elif text.startswith("Expiry Date:"):
+                current["expiry"] = text.split(":", 1)[1].strip()
+            elif text.startswith("Certificate Path:"):
+                current["cert_path"] = text.split(":", 1)[1].strip()
+            elif text.startswith("Private Key Path:"):
+                current["key_path"] = text.split(":", 1)[1].strip()
+        if current:
+            certs.append(current)
+        return certs
+
+
+class ServiceManager:
+    DEFAULT_SERVICES = ["nginx", "docker", "mysql", "mariadb", "postgresql", "redis-server", "ssh", "ufw"]
+
+    def __init__(self, host_control: bool = False):
+        self.host_control = host_control
+
+    def list_services(self) -> dict:
+        return {"host_control": self.host_control, "services": [self.status(name) for name in self.DEFAULT_SERVICES]}
+
+    def status(self, name: str) -> dict:
+        safe = self._safe_name(name)
+        return {
+            "name": safe,
+            "exists": self._exists(safe),
+            "active": self._systemctl("is-active", safe),
+            "enabled": self._systemctl("is-enabled", safe),
+        }
+
+    def action(self, name: str, action: str) -> dict:
+        if not self.host_control:
+            raise PermissionError("Host control disabled")
+        safe = self._safe_name(name)
+        if action not in {"start", "stop", "restart", "reload", "enable", "disable"}:
+            raise ValueError("Action service tidak valid")
+        code, out, err = run_cmd(["systemctl", action, safe], timeout=90)
+        return {"success": code == 0, "stdout": out, "stderr": err, "code": code, "service": safe, "action": action}
+
+    def logs(self, name: str, lines: int = 120) -> dict:
+        safe = self._safe_name(name)
+        lines = max(20, min(int(lines or 120), 1000))
+        code, out, err = run_cmd(["journalctl", "-u", safe, "-n", str(lines), "--no-pager"], timeout=30)
+        return {"success": code == 0, "stdout": out, "stderr": err, "code": code, "service": safe}
+
+    @staticmethod
+    def _safe_name(name: str) -> str:
+        value = str(name or "").strip()
+        if not re.match(r"^[A-Za-z0-9@_.-]{1,120}$", value):
+            raise ValueError("Nama service tidak valid")
+        return value
+
+    @staticmethod
+    def _systemctl(action: str, name: str) -> str:
+        if not shutil.which("systemctl"):
+            return "unknown"
+        code, out, _ = run_cmd(["systemctl", action, name], timeout=8)
+        return out if out else ("unknown" if code != 0 else "")
+
+    @staticmethod
+    def _exists(name: str) -> bool:
+        if not shutil.which("systemctl"):
+            return False
+        code, _, _ = run_cmd(["systemctl", "status", name], timeout=8)
+        return code in {0, 3}
 
 
 class BackupService:

@@ -33,5 +33,7 @@ class Config:
     ENABLE_TERMINAL = os.environ.get("ENABLE_TERMINAL", "1") == "1"
     ENABLE_GDRIVE_BACKUP = os.environ.get("ENABLE_GDRIVE_BACKUP", "1") == "1"
     GDRIVE_REMOTE = os.environ.get("GDRIVE_REMOTE", "")
+    LETSENCRYPT_EMAIL = os.environ.get("LETSENCRYPT_EMAIL", "")
+    LETSENCRYPT_STAGING = os.environ.get("LETSENCRYPT_STAGING", "0") == "1"
     ALLOW_RUNTIME_INSTALL = os.environ.get("ALLOW_RUNTIME_INSTALL", "0") == "1"
     BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", DATA_DIR / "backups")).resolve()

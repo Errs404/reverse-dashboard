@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, send_file, session
 
-from ..extensions import audit_service, auth_service, backup_service, database_service, firewall_service, nginx_service, pm2_service, system_service, terminal_service
+from ..extensions import audit_service, auth_service, backup_service, database_service, firewall_service, nginx_service, pm2_service, service_manager, system_service, terminal_service
 from ..security import login_required, permission_required
 
 bp = Blueprint("api", __name__)
@@ -78,6 +78,33 @@ def storage():
 @permission_required("security", "view")
 def security_summary():
     return jsonify(system_service().security_summary(auth_service().load()))
+
+
+@bp.get("/services")
+@permission_required("services", "view")
+def services_list():
+    return jsonify(service_manager().list_services())
+
+
+@bp.post("/services/action")
+@permission_required("services", "restart")
+def services_action():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = service_manager().action(str(data.get("name", "")), str(data.get("action", "")))
+        audit_service().log("SERVICE_ACTION", session.get("username", "unknown"), request.remote_addr or "unknown", f"{data.get('action')} {data.get('name')}")
+        return jsonify(result)
+    except (ValueError, PermissionError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.get("/services/<name>/logs")
+@permission_required("services", "view")
+def services_logs(name: str):
+    try:
+        return jsonify(service_manager().logs(name, request.args.get("lines", 120, type=int)))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @bp.get("/database/status")
@@ -318,6 +345,29 @@ def nginx_ssl():
         audit_service().log("NGINX_SSL", session.get("username", "unknown"), request.remote_addr or "unknown", domain)
         return jsonify(result)
     except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.get("/nginx/certificates")
+@permission_required("nginx", "view")
+def nginx_certificates():
+    return jsonify(nginx_service().certificates())
+
+
+@bp.post("/nginx/renew-dry-run")
+@permission_required("nginx", "full")
+def nginx_renew_dry_run():
+    result = nginx_service().renew_dry_run()
+    audit_service().log("NGINX_RENEW_DRY_RUN", session.get("username", "unknown"), request.remote_addr or "unknown", str(result.get("code")))
+    return jsonify(result)
+
+
+@bp.get("/nginx/certificate-probe")
+@permission_required("nginx", "view")
+def nginx_certificate_probe():
+    try:
+        return jsonify(nginx_service().certificate_probe(request.args.get("domain", "")))
+    except Exception as exc:
         return jsonify({"error": str(exc)}), 400
 
 
