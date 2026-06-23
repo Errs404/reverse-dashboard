@@ -28,6 +28,10 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "terminal": False,
         "host_control": False,
     },
+    "backup": {
+        "gdrive_enabled": True,
+        "gdrive_remote": "",
+    },
 }
 
 

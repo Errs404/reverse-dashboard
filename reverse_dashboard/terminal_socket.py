@@ -7,6 +7,7 @@ import select
 import signal
 import struct
 import termios
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import Popen
@@ -25,6 +26,7 @@ class PtySession:
 
 
 SESSIONS: dict[str, PtySession] = {}
+LOCK = threading.Lock()
 
 
 def register_terminal_socket(socketio) -> None:
@@ -51,20 +53,37 @@ def register_terminal_socket(socketio) -> None:
             return
         sid = request.sid
         close_session(sid)
-        rows = int((data or {}).get("rows") or 30)
-        cols = int((data or {}).get("cols") or 120)
+        try:
+            rows = int((data or {}).get("rows") or 30)
+            cols = int((data or {}).get("cols") or 120)
+        except (TypeError, ValueError):
+            rows, cols = 30, 120
         shell = os.environ.get("SHELL") or "/bin/bash"
         cwd = Path(current_app.config.get("HOST_ROOT", "/")).resolve()
-        master_fd, slave_fd = pty.openpty()
-        set_winsize(master_fd, rows, cols)
-        env = os.environ.copy()
-        env.update({"TERM": "xterm-256color", "COLORTERM": "truecolor"})
-        proc = Popen([shell, "-l"], stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, cwd=str(cwd), env=env, preexec_fn=os.setsid, close_fds=True)
-        os.close(slave_fd)
-        SESSIONS[sid] = PtySession(fd=master_fd, proc=proc, cwd=cwd)
-        audit_service().log("TERMINAL_PTY_START", session.get("username", "unknown"), request.remote_addr or "unknown", str(cwd))
-        socketio.start_background_task(read_loop, socketio, sid, namespace)
-        emit("terminal_status", {"connected": True, "pid": proc.pid})
+        master_fd = None
+        slave_fd = None
+        try:
+            master_fd, slave_fd = pty.openpty()
+            set_winsize(master_fd, rows, cols)
+            env = os.environ.copy()
+            env.update({"TERM": "xterm-256color", "COLORTERM": "truecolor"})
+            proc = Popen([shell, "-l"], stdin=slave_fd, stdout=slave_fd, stderr=slave_fd, cwd=str(cwd), env=env, preexec_fn=os.setsid, close_fds=True)
+            os.close(slave_fd)
+            slave_fd = None
+            with LOCK:
+                SESSIONS[sid] = PtySession(fd=master_fd, proc=proc, cwd=cwd)
+            audit_service().log("TERMINAL_PTY_START", session.get("username", "unknown"), request.remote_addr or "unknown", str(cwd))
+            socketio.start_background_task(read_loop, socketio, sid, namespace)
+            emit("terminal_status", {"connected": True, "pid": proc.pid})
+        except Exception as exc:
+            for fd in (master_fd, slave_fd):
+                if fd is not None:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+            emit("terminal_output", {"data": f"\r\nFailed to start terminal: {exc}\r\n"})
+            emit("terminal_status", {"connected": False, "error": str(exc)})
 
     @socketio.on("terminal_input", namespace=namespace)
     def terminal_input(data=None):
@@ -81,7 +100,10 @@ def register_terminal_socket(socketio) -> None:
         pty_session = SESSIONS.get(request.sid)
         if not pty_session:
             return
-        set_winsize(pty_session.fd, int((data or {}).get("rows") or 30), int((data or {}).get("cols") or 120))
+        try:
+            set_winsize(pty_session.fd, int((data or {}).get("rows") or 30), int((data or {}).get("cols") or 120))
+        except (TypeError, ValueError, OSError):
+            return
 
     @socketio.on("terminal_stop", namespace=namespace)
     def terminal_stop():
@@ -94,12 +116,17 @@ def register_terminal_socket(socketio) -> None:
 
 
 def read_loop(socketio, sid: str, namespace: str) -> None:
-    pty_session = SESSIONS.get(sid)
+    with LOCK:
+        pty_session = SESSIONS.get(sid)
     if not pty_session:
         return
     fd = pty_session.fd
     try:
-        while sid in SESSIONS and pty_session.proc.poll() is None:
+        while True:
+            with LOCK:
+                still_active = sid in SESSIONS
+            if not still_active or pty_session.proc.poll() is not None:
+                break
             ready, _, _ = select.select([fd], [], [], 0.2)
             if not ready:
                 continue
@@ -111,7 +138,10 @@ def read_loop(socketio, sid: str, namespace: str) -> None:
                 break
             socketio.emit("terminal_output", {"data": chunk.decode("utf-8", errors="replace")}, to=sid, namespace=namespace)
     finally:
-        socketio.emit("terminal_status", {"connected": False}, to=sid, namespace=namespace)
+        try:
+            socketio.emit("terminal_status", {"connected": False}, to=sid, namespace=namespace)
+        except Exception:
+            pass
         close_session(sid)
 
 
@@ -122,7 +152,8 @@ def set_winsize(fd: int, rows: int, cols: int) -> None:
 
 
 def close_session(sid: str) -> None:
-    pty_session = SESSIONS.pop(sid, None)
+    with LOCK:
+        pty_session = SESSIONS.pop(sid, None)
     if not pty_session:
         return
     try:

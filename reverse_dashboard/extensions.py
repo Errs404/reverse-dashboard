@@ -81,7 +81,10 @@ def service_manager() -> ServiceManager:
 
 def backup_service() -> BackupService:
     if "backup_service" not in g:
-        g.backup_service = BackupService(current_app.config["DATA_DIR"], current_app.config["BACKUP_DIR"], current_app.config["ENABLE_BACKUP"], current_app.config["ENABLE_GDRIVE_BACKUP"], current_app.config["GDRIVE_REMOTE"])
+        backup_settings = settings_service().load().get("backup", {})
+        gdrive_enabled = current_app.config["ENABLE_GDRIVE_BACKUP"] and bool(backup_settings.get("gdrive_enabled", True))
+        gdrive_remote = str(backup_settings.get("gdrive_remote") or current_app.config["GDRIVE_REMOTE"] or "")
+        g.backup_service = BackupService(current_app.config["DATA_DIR"], current_app.config["BACKUP_DIR"], current_app.config["ENABLE_BACKUP"], gdrive_enabled, gdrive_remote)
     return g.backup_service
 
 

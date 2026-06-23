@@ -566,11 +566,29 @@ async function loadBackup(){
     setText('#backupDir', status.backup_dir || '-');
     const gd = status.gdrive || {};
     $('#gdriveStatus').innerHTML = `<div class="install-copy"><span class="material-symbols-outlined">cloud_sync</span><div><strong>${gd.configured ? 'Google Drive configured' : 'Google Drive not configured'}</strong><small>rclone: ${esc(gd.rclone || 'not installed')} · remote: ${esc(gd.remote || 'set GDRIVE_REMOTE')}</small><code>ENABLE_GDRIVE_BACKUP=1 GDRIVE_REMOTE=gdrive:reverse-dashboard-backups</code></div></div>`;
+    const form = $('#gdriveConfigForm');
+    if (form) { form.elements.enabled.checked = Boolean(gd.enabled); form.elements.remote.value = gd.remote || ''; }
     $('#backupRows').innerHTML = data.backups.length ? data.backups.map(b => `<tr><td class="mono">${esc(b.name)}</td><td>${esc(b.size_human)}</td><td>${esc(dateHuman(b.created))}</td><td><a class="ghost download-link" href="/api/backup/download/${encodeURIComponent(b.name)}">${icon('download')}Download</a> <button class="ghost" onclick="uploadBackupGDrive('${esc(b.name)}')">${icon('cloud_upload')}GDrive</button></td></tr>`).join('') : `<tr><td colspan="4">No backups yet.</td></tr>`;
   } catch(err) { toast(err.message, true); }
 }
 async function createBackup(){ try{ const result = await api('/api/backup/create',{method:'POST',body:JSON.stringify({})}); toast(`Backup created: ${result.name}`); loadBackup(); }catch(err){toast(err.message,true);} }
-function initBackup(){ loadBackup(); }
+
+async function installRclone(){
+  const out = $('#gdriveOutput');
+  if (out) out.textContent = 'Installing rclone...';
+  try { const result = await api('/api/backup/rclone/install',{method:'POST',body:JSON.stringify({})}); if(out) out.textContent = `${result.stdout || ''}${result.stderr ? `\n${result.stderr}` : ''}\n[exit ${result.code}]`; toast(result.success ? 'rclone install completed' : 'rclone install failed', !result.success); loadBackup(); }
+  catch(err){ if(out) out.textContent = err.message; toast(err.message,true); }
+}
+
+async function saveGDriveConfig(e){
+  e.preventDefault();
+  const form = e.currentTarget;
+  const body = {enabled: Boolean(form.elements.enabled.checked), remote: form.elements.remote.value.trim()};
+  try { await api('/api/backup/gdrive/config',{method:'POST',body:JSON.stringify(body)}); toast('Google Drive config saved'); loadBackup(); }
+  catch(err){ toast(err.message,true); }
+}
+
+function initBackup(){ loadBackup(); $('#gdriveConfigForm')?.addEventListener('submit', saveGDriveConfig); }
 
 async function uploadBackupGDrive(name){
   const out = $('#gdriveOutput');

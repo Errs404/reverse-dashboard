@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import re
+
 from flask import Blueprint, jsonify, request, send_file, session
 
-from ..extensions import audit_service, auth_service, backup_service, database_service, firewall_service, nginx_service, pm2_service, service_manager, system_service, terminal_service
+from ..extensions import audit_service, auth_service, backup_service, database_service, firewall_service, nginx_service, pm2_service, service_manager, settings_service, system_service, terminal_service
 from ..security import login_required, permission_required
 
 bp = Blueprint("api", __name__)
@@ -413,6 +415,27 @@ def backup_gdrive_upload(name: str):
         return jsonify(result)
     except (ValueError, PermissionError, RuntimeError, FileNotFoundError) as exc:
         return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/backup/rclone/install")
+@permission_required("backup", "full")
+def backup_rclone_install():
+    result = backup_service().install_rclone()
+    audit_service().log("RCLONE_INSTALL", session.get("username", "unknown"), request.remote_addr or "unknown", str(result.get("code")))
+    return jsonify(result)
+
+
+@bp.post("/backup/gdrive/config")
+@permission_required("backup", "full")
+def backup_gdrive_config():
+    data = request.get_json(silent=True) or {}
+    remote = str(data.get("remote", "")).strip()
+    enabled = bool(data.get("enabled", True))
+    if remote and not re.match(r"^[A-Za-z0-9_.-]+:.+", remote):
+        return jsonify({"error": "Remote harus format rclone, contoh: gdrive:reverse-dashboard-backups"}), 400
+    saved = settings_service().save({"backup": {"gdrive_enabled": enabled, "gdrive_remote": remote}})
+    audit_service().log("GDRIVE_CONFIG", session.get("username", "unknown"), request.remote_addr or "unknown", remote)
+    return jsonify(saved.get("backup", {}))
 
 
 @bp.get("/terminal/status")

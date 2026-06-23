@@ -426,6 +426,19 @@ class BackupService:
     def gdrive_status(self) -> dict:
         return {"enabled": self.gdrive_enabled, "configured": bool(self.gdrive_remote), "remote": self.gdrive_remote, "rclone": shutil.which("rclone")}
 
+    def install_rclone(self) -> dict:
+        if shutil.which("rclone"):
+            return {"success": True, "stdout": f"rclone already installed: {shutil.which('rclone')}", "stderr": "", "code": 0}
+        shell = shutil.which("bash") or shutil.which("sh")
+        if not shell:
+            return {"success": False, "stdout": "", "stderr": "bash/sh not found", "code": 127}
+        command = "curl -fsSL https://rclone.org/install.sh | bash"
+        try:
+            proc = subprocess.run([shell, "-lc", command], capture_output=True, text=True, timeout=300, check=False)
+            return {"success": proc.returncode == 0, "stdout": proc.stdout.strip(), "stderr": proc.stderr.strip(), "code": proc.returncode}
+        except subprocess.TimeoutExpired:
+            return {"success": False, "stdout": "", "stderr": "rclone install timeout", "code": 124}
+
     def list_backups(self) -> list[dict]:
         rows = []
         for path in sorted(self.backup_dir.glob("reverse-dashboard-*.tar.gz"), reverse=True):
