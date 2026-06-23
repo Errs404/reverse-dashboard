@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Database - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="workspace-page">
+  <header class="page-head stitch-head">
+    <div>
+      <p class="eyebrow">Database manager</p>
+      <h1>Database</h1>
+      <p class="page-subtitle">Detect MySQL, MariaDB, PostgreSQL, and SQLite on the host. Start with service control and installation hints before credentialed database/user management.</p>
+    </div>
+    <button class="ghost" onclick="loadDatabase()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+  </header>
+
+  <section class="summary-strip">
+    <article class="mini-stat"><span class="material-symbols-outlined">database</span><div><strong id="databaseAvailable">Checking</strong><small>Database engines</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">admin_panel_settings</span><div><strong id="databaseHostControl">-</strong><small>Host control</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">terminal</span><div><strong>CLI first</strong><small>Safe credential flow</small></div></article>
+  </section>
+
+  <section class="card data-panel">
+    <div class="toolbar panel-toolbar">
+      <div class="toolbar-title"><span class="material-symbols-outlined">storage</span><strong>Database services</strong></div>
+      <div class="notice" id="databaseNotice">Checking host database tools...</div>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Engine</th><th>Installed</th><th>Service</th><th>Version</th><th>Install hint</th><th>Actions</th></tr></thead><tbody id="databaseRows"></tbody></table></div>
+  </section>
+
+  <section class="grid two-col workspace-grid">
+    <article class="card data-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">key</span><h2>Connection</h2></div>
+      <form id="databaseConnectionForm" class="stack-form">
+        <select name="engine"><option value="mysql">MySQL</option><option value="mariadb">MariaDB</option><option value="postgresql">PostgreSQL</option></select>
+        <input name="username" placeholder="admin username" value="root">
+        <input name="password" type="password" placeholder="admin password / blank if socket auth">
+        <div class="inline-fields"><input name="host" placeholder="host optional"><input name="port" placeholder="port optional"></div>
+        <button class="primary"><span class="material-symbols-outlined">list</span>List databases</button>
+      </form>
+      <pre id="databaseOutput" class="log-box compact-log">Database output will appear here.</pre>
+    </article>
+    <article class="card data-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">dns</span><h2>Databases</h2></div>
+      <div id="databaseList" class="list"><div class="list-item"><span>No database loaded.</span><strong>-</strong></div></div>
+    </article>
+  </section>
+
+  <section class="grid two-col workspace-grid">
+    <article class="card data-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">add_circle</span><h2>Create database</h2></div>
+      <form id="databaseCreateForm" class="terminal-form port-form"><input name="database" placeholder="database_name" required><button class="primary"><span class="material-symbols-outlined">add</span>Create</button></form>
+    </article>
+    <article class="card data-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">person_add</span><h2>Create user and grant</h2></div>
+      <form id="databaseUserForm" class="stack-form"><input name="new_username" placeholder="username" required><input name="new_password" type="password" placeholder="password min 8" required><input name="new_host" placeholder="host, default %"><input name="database" placeholder="grant database optional"><button class="primary"><span class="material-symbols-outlined">person_add</span>Create user</button></form>
+    </article>
+  </section>
+
+  <section class="grid two-col workspace-grid">
+    <article class="card data-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">upload_file</span><h2>Import SQL</h2></div>
+      <form id="databaseImportForm" class="stack-form"><input name="database" placeholder="target database" required><input name="file" type="file" accept=".sql,.dump,.txt" required><button class="primary"><span class="material-symbols-outlined">upload_file</span>Import</button></form>
+    </article>
+    <article class="card data-panel">
+      <div class="panel-heading"><span class="material-symbols-outlined">download</span><h2>Export SQL</h2></div>
+      <form id="databaseExportForm" class="terminal-form port-form"><input name="database" placeholder="database_name" required><button class="primary"><span class="material-symbols-outlined">download</span>Export</button></form>
+    </article>
+  </section>
+
+  <section class="card data-panel">
+    <div class="panel-heading"><span class="material-symbols-outlined">info</span><h2>Next database workflow</h2></div>
+    <div id="databaseNotes" class="install-copy"><span class="material-symbols-outlined">pending_actions</span><div><strong>Credentialed management is staged next</strong><small>Create database, create user, import SQL, export dump, and web SQL console should be added with explicit credentials and audit logs.</small><code>mysql -u root -p · psql -U postgres · sqlite3 file.db</code></div></div>
+  </section>
+</section>
+{% endblock %}
+{% block scripts %}<script>initDatabase();</script>{% endblock %}

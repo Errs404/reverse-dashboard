@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -121,6 +122,122 @@ class NginxService:
         candidates = [Path("/etc/nginx/nginx.conf"), Path("/etc/nginx/sites-enabled"), Path("/etc/nginx/conf.d")]
         return [{"path": str(p), "exists": p.exists(), "type": "dir" if p.is_dir() else "file"} for p in candidates]
 
+    def list_sites(self) -> list[dict]:
+        available = Path("/etc/nginx/sites-available")
+        enabled = Path("/etc/nginx/sites-enabled")
+        rows = []
+        if not available.exists():
+            return rows
+        for path in sorted(p for p in available.iterdir() if p.is_file()):
+            content = self._read_config(path)
+            names = self._server_names(content)
+            enabled_path = enabled / path.name
+            rows.append({
+                "name": path.name,
+                "path": str(path),
+                "enabled": enabled_path.exists(),
+                "server_names": names,
+                "ssl": "ssl_certificate" in content,
+                "proxy_passes": re.findall(r"proxy_pass\s+([^;]+);", content),
+                "modified": int(path.stat().st_mtime),
+            })
+        return rows
+
+    def get_site(self, name: str) -> dict:
+        path = self._site_path(name)
+        if not path.exists():
+            raise FileNotFoundError("Site config tidak ditemukan")
+        return {"name": path.name, "content": self._read_config(path), "enabled": (Path("/etc/nginx/sites-enabled") / path.name).exists()}
+
+    def save_site(self, name: str, content: str, enable: bool = True) -> dict:
+        if not self.host_control:
+            raise PermissionError("Host control disabled")
+        path = self._site_path(name)
+        if not content.strip():
+            raise ValueError("Config tidak boleh kosong")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        old_content = path.read_text(encoding="utf-8", errors="replace") if path.exists() else None
+        path.write_text(content.rstrip() + "\n", encoding="utf-8")
+        if enable:
+            self.enable_site(path.name)
+        test = self.test_config()
+        if not test.get("success"):
+            if old_content is None:
+                path.unlink(missing_ok=True)
+                (Path("/etc/nginx/sites-enabled") / path.name).unlink(missing_ok=True)
+            else:
+                path.write_text(old_content, encoding="utf-8")
+            raise RuntimeError(test.get("stderr") or "Nginx config test failed")
+        return {"success": True, "name": path.name, "path": str(path), "test": test}
+
+    def create_proxy_site(self, domain: str, upstream: str, root: str = "", ssl_redirect: bool = False) -> dict:
+        domain = self._safe_domain(domain)
+        upstream = upstream.strip()
+        if not upstream.startswith(("http://", "https://")):
+            upstream = f"http://{upstream}"
+        root_line = f"\n    root {root.strip()};\n" if root.strip() else ""
+        redirect_block = "" if not ssl_redirect else "\n    # Certbot will replace this after issuing SSL.\n"
+        content = f"""server {{
+    listen 80;
+    listen [::]:80;
+    server_name {domain};{root_line}
+    client_max_body_size 512M;{redirect_block}
+    location / {{
+        proxy_pass {upstream};
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }}
+}}
+"""
+        return self.save_site(domain, content, enable=True)
+
+    def enable_site(self, name: str) -> dict:
+        if not self.host_control:
+            raise PermissionError("Host control disabled")
+        path = self._site_path(name)
+        if not path.exists():
+            raise FileNotFoundError("Site config tidak ditemukan")
+        enabled = Path("/etc/nginx/sites-enabled")
+        enabled.mkdir(parents=True, exist_ok=True)
+        link = enabled / path.name
+        if not link.exists():
+            link.symlink_to(path)
+        return {"success": True, "enabled": True, "name": path.name}
+
+    def disable_site(self, name: str) -> dict:
+        if not self.host_control:
+            raise PermissionError("Host control disabled")
+        link = Path("/etc/nginx/sites-enabled") / self._safe_site_name(name)
+        if link.exists() or link.is_symlink():
+            link.unlink()
+        return {"success": True, "enabled": False, "name": link.name}
+
+    def delete_site(self, name: str) -> dict:
+        if not self.host_control:
+            raise PermissionError("Host control disabled")
+        safe_name = self._safe_site_name(name)
+        self.disable_site(safe_name)
+        path = Path("/etc/nginx/sites-available") / safe_name
+        path.unlink(missing_ok=True)
+        return {"success": True, "deleted": safe_name}
+
+    def issue_ssl(self, domain: str) -> dict:
+        if not self.host_control:
+            raise PermissionError("Host control disabled")
+        domain = self._safe_domain(domain)
+        certbot = shutil.which("certbot")
+        if not certbot:
+            raise RuntimeError("certbot tidak tersedia")
+        code, out, err = run_cmd([certbot, "--nginx", "-d", domain, "--redirect", "--agree-tos", "--register-unsafely-without-email", "--non-interactive"], timeout=600)
+        return {"success": code == 0, "stdout": out, "stderr": err, "code": code, "domain": domain}
+
     def test_config(self) -> dict:
         nginx = shutil.which("nginx")
         if not nginx:
@@ -142,6 +259,34 @@ class NginxService:
             return {"success": False, "stdout": "", "stderr": f"installer not found: {script}", "code": 127}
         code, out, err = run_cmd(["bash", str(script), "--nginx"], timeout=300)
         return {"success": code == 0, "stdout": out, "stderr": err, "code": code}
+
+    @staticmethod
+    def _read_config(path: Path) -> str:
+        return path.read_text(encoding="utf-8", errors="replace")
+
+    @staticmethod
+    def _server_names(content: str) -> list[str]:
+        names = []
+        for match in re.findall(r"server_name\s+([^;]+);", content):
+            names.extend(part for part in match.split() if part != "_")
+        return names
+
+    @staticmethod
+    def _safe_site_name(name: str) -> str:
+        value = Path(str(name or "").strip()).name
+        if not value or value in {".", ".."} or not re.match(r"^[A-Za-z0-9._-]{1,120}$", value):
+            raise ValueError("Nama site tidak valid")
+        return value
+
+    def _site_path(self, name: str) -> Path:
+        return Path("/etc/nginx/sites-available") / self._safe_site_name(name)
+
+    @staticmethod
+    def _safe_domain(domain: str) -> str:
+        value = str(domain or "").strip().lower()
+        if not re.match(r"^[a-z0-9][a-z0-9.-]{0,251}[a-z0-9]$", value) or ".." in value:
+            raise ValueError("Domain tidak valid")
+        return value
 
     @staticmethod
     def _systemctl_state(name: str) -> str:

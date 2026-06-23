@@ -9,6 +9,7 @@
       <button class="terminal-tab active" type="button"><span class="material-symbols-outlined">terminal</span>Terminal 1<span class="material-symbols-outlined close">close</span></button>
       <button class="term-icon-btn" type="button" aria-label="New tab"><span class="material-symbols-outlined">add</span></button>
     </div>
+    <button class="term-icon-btn" type="button" onclick="restartTerminalSession()" aria-label="Restart terminal"><span class="material-symbols-outlined">restart_alt</span></button>
     <button class="term-icon-btn" type="button" onclick="openTerminalCommands()" aria-label="Custom commands"><span class="material-symbols-outlined">settings</span></button>
   </header>
 
@@ -22,7 +23,7 @@
 
   <section class="terminal-screen-card">
     <div class="terminal-titlebar"><span>TERMINAL — <b id="terminalSessionTitle">guarded@reverse</b></span><span id="terminalStatusPill" class="status-chip">checking</span></div>
-    <pre id="terminalOutput" class="terminal-output terminal-output-large">Connecting to guarded terminal...</pre>
+    <pre id="terminalOutput" class="terminal-output terminal-output-large" tabindex="0">Connecting to interactive terminal...</pre>
     <form id="terminalForm" class="terminal-inline-form">
       <span class="prompt">$</span>
       <input id="terminalCommand" class="mono" aria-label="Terminal input" autocomplete="off" placeholder="uptime">
@@ -39,4 +40,4 @@
 
 <dialog id="terminalCommandsDialog" class="terminal-dialog"><form method="dialog" class="editor-box"><h2><span class="material-symbols-outlined">terminal</span>Custom Commands</h2><p class="page-subtitle">Add quick commands locally in this browser, one per line: name=command</p><textarea id="terminalCustomCommands" placeholder="Example:\nDisk=df -h\nNginx Test=nginx -t\nPM2 List=pm2 jlist"></textarea><div class="actions"><button class="ghost">Cancel</button><button class="primary" value="save" id="saveTerminalCommands"><span class="material-symbols-outlined">save</span>Save</button></div></form></dialog>
 {% endblock %}
-{% block scripts %}<script>initTerminal();</script>{% endblock %}
+{% block scripts %}<script src="/socket.io/socket.io.js"></script><script>initTerminal();</script>{% endblock %}

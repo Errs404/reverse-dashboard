@@ -231,7 +231,7 @@ async function loadFiles(path = reverseConfig.fileRoot || '/') {
     if (rows) rows.innerHTML = data.items.map(item => `<tr>
       <td class="mono"><span class="file-icon ${item.is_dir ? 'dir' : 'file'}">${icon(item.is_dir ? 'folder' : 'description')}</span><a href="#" data-open="${encodeURIComponent(item.path)}" data-dir="${item.is_dir}">${esc(item.name)}</a></td>
       <td>${esc(item.size_human)}</td><td>${esc(item.mode)}</td>
-      <td><button class="ghost" data-edit="${encodeURIComponent(item.path)}" ${item.is_dir ? 'disabled' : ''}>${icon(reverseConfig.filesWritable === false ? 'visibility' : 'edit')}${reverseConfig.filesWritable === false ? 'View' : 'Edit'}</button> ${reverseConfig.filesWritable === false ? '' : `<button class="ghost danger" data-delete="${encodeURIComponent(item.path)}">${icon('delete')}Delete</button>`}</td>
+      <td><button class="ghost" data-edit="${encodeURIComponent(item.path)}" ${item.is_dir ? 'disabled' : ''}>${icon(reverseConfig.filesWritable === false ? 'visibility' : 'edit')}${reverseConfig.filesWritable === false ? 'View' : 'Edit'}</button> ${item.is_dir ? '' : `<a class="ghost download-link" href="/api/files/download?path=${encodeURIComponent(item.path)}">${icon('download')}Download</a>`} ${reverseConfig.filesWritable === false ? '' : `<button class="ghost danger" data-delete="${encodeURIComponent(item.path)}">${icon('delete')}Delete</button>`}</td>
     </tr>`).join('');
     $$('[data-open]').forEach(a => a.onclick = (e) => { e.preventDefault(); if (a.dataset.dir === 'true') loadFiles(decodeURIComponent(a.dataset.open)); else openEditor(decodeURIComponent(a.dataset.open)); });
     $$('[data-edit]').forEach(b => b.onclick = () => openEditor(decodeURIComponent(b.dataset.edit)));
@@ -245,7 +245,24 @@ async function openEditor(path) {
 async function deletePath(path) { const expected = basename(path); const typed = prompt(`Ketik nama ini untuk hapus permanen:\n${expected}`); if (typed !== expected) return; try { await api('/api/files/action', {method:'POST', body:JSON.stringify({action:'delete', path})}); toast('Deleted'); loadFiles(currentFilePath); } catch(err){toast(err.message,true);} }
 async function newFolder(){ const name=prompt('Folder path', `${currentFilePath}/new-folder`); if(!name)return; await api('/api/files/action',{method:'POST',body:JSON.stringify({action:'mkdir',path:name})}).then(()=>loadFiles(currentFilePath)).catch(e=>toast(e.message,true)); }
 async function newFile(){ const name=prompt('File path', `${currentFilePath}/new-file.txt`); if(!name)return; await api('/api/files/action',{method:'POST',body:JSON.stringify({action:'touch',path:name})}).then(()=>loadFiles(currentFilePath)).catch(e=>toast(e.message,true)); }
-function initFiles(){ loadFiles(reverseConfig.fileRoot || '/'); $('#saveEditor')?.addEventListener('click', async (e)=>{ e.preventDefault(); try{ await api('/api/files/content',{method:'POST',body:JSON.stringify({path:editorPath,content:$('#editorContent').value})}); $('#editor').close(); toast('Saved'); }catch(err){toast(err.message,true);} }); }
+function initFiles(){ loadFiles(reverseConfig.fileRoot || '/'); $('#saveEditor')?.addEventListener('click', async (e)=>{ e.preventDefault(); try{ await api('/api/files/content',{method:'POST',body:JSON.stringify({path:editorPath,content:$('#editorContent').value})}); $('#editor').close(); toast('Saved'); }catch(err){toast(err.message,true);} }); $('#uploadForm')?.addEventListener('submit', uploadFiles); }
+
+async function uploadFiles(e){
+  e.preventDefault();
+  const form = e.currentTarget;
+  const fd = new FormData(form);
+  fd.set('path', currentFilePath);
+  fd.set('overwrite', form.querySelector('[name=overwrite]')?.checked ? '1' : '0');
+  try {
+    const res = await fetch('/api/files/upload', {method:'POST', body:fd});
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    toast(`Uploaded ${data.uploaded?.length || 0} file(s)`);
+    $('#uploadDialog')?.close();
+    form.reset();
+    loadFiles(currentFilePath);
+  } catch(err) { toast(err.message, true); }
+}
 
 async function loadDocker() {
   try {
@@ -258,8 +275,13 @@ async function loadDocker() {
       if (grid) grid.innerHTML = `<article class="docker-mini-card empty"><span class="material-symbols-outlined">cloud_off</span><strong>Docker unavailable</strong><small>${esc(status.reason || 'Docker unavailable')}</small><code>${esc(status.fix || 'Check Docker daemon and permissions')}</code></article>`;
       return;
     }
-    const data = await api('/api/docker/containers');
+    const [data, imageData, networkData] = await Promise.all([
+      api('/api/docker/containers'),
+      api('/api/docker/images').catch(() => ({images: []})),
+      api('/api/docker/networks').catch(() => ({networks: []})),
+    ]);
     setText('#dockerContainerCount', String(data.containers.length));
+    setText('#dockerImageCount', String(imageData.images.length));
     const grid = $('#dockerCardGrid');
     if (grid) {
       grid.innerHTML = data.containers.length ? data.containers.slice(0, 6).map((c, index) => {
@@ -273,12 +295,20 @@ async function loadDocker() {
         </article>`;
       }).join('') : `<article class="docker-mini-card empty"><span class="material-symbols-outlined">inventory_2</span><strong>No containers</strong><small>Docker is connected but no containers were returned.</small></article>`;
     }
-    $('#dockerRows').innerHTML = data.containers.map(c => `<tr><td>${esc(c.name)}</td><td class="mono">${esc(c.image)}</td><td><span class="status-pill ${statusClass(c.status)}">${esc(c.status)}</span></td><td>${c.ports.map(p=>`${esc(p.host_port)}-&gt;${esc(p.container)}`).join('<br>') || '-'}</td><td><button class="ghost" onclick="dockerAction('${esc(c.id)}','restart')">${icon('restart_alt')}Restart</button> <button class="ghost" onclick="showLogs('${esc(c.id)}')">${icon('article')}Logs</button></td></tr>`).join('');
+    $('#dockerRows').innerHTML = data.containers.map(c => `<tr><td>${esc(c.name)}</td><td class="mono">${esc(c.image)}</td><td><span class="status-pill ${statusClass(c.status)}">${esc(c.status)}</span></td><td>${c.ports.map(p=>`${esc(p.host_port)}-&gt;${esc(p.container)}`).join('<br>') || '-'}</td><td><button class="ghost" onclick="dockerAction('${esc(c.id)}','restart')">${icon('restart_alt')}Restart</button><button class="ghost" onclick="dockerAction('${esc(c.id)}','stop')">${icon('stop_circle')}Stop</button><button class="ghost" onclick="dockerAction('${esc(c.id)}','start')">${icon('play_circle')}Start</button><button class="ghost" onclick="showLogs('${esc(c.id)}')">${icon('article')}Logs</button><button class="ghost danger" onclick="removeContainer('${esc(c.id)}','${esc(c.name)}')">${icon('delete')}Delete</button></td></tr>`).join('');
+    const imageRows = $('#dockerImageRows');
+    if (imageRows) imageRows.innerHTML = imageData.images.length ? imageData.images.map(img => `<tr><td class="mono">${esc((img.tags || []).join(', '))}</td><td class="mono">${esc(img.id)}</td><td>${esc(img.size_human)}</td><td>${esc(img.created || '-')}</td><td><button class="ghost danger" onclick="removeDockerImage('${esc((img.tags || [img.id])[0])}')">${icon('delete')}Delete</button></td></tr>`).join('') : `<tr><td colspan="5">No local images found.</td></tr>`;
+    const networkRows = $('#dockerNetworkRows');
+    if (networkRows) networkRows.innerHTML = networkData.networks.length ? networkData.networks.map(n => `<tr><td>${esc(n.name)}</td><td class="mono">${esc(n.id)}</td><td>${esc(n.driver || '-')}</td><td>${esc(n.scope || '-')}</td><td>${esc(n.containers)}</td></tr>`).join('') : `<tr><td colspan="5">No Docker networks found.</td></tr>`;
   } catch (err) { toast(err.message, true); }
 }
 async function dockerAction(id, action){ try{ await api(`/api/docker/containers/${id}/action`,{method:'POST',body:JSON.stringify({action})}); toast(`${action} sent`); loadDocker(); }catch(err){toast(err.message,true);} }
 async function showLogs(id){ try{ const data=await api(`/api/docker/containers/${id}/logs?lines=300`); $('#logContent').textContent=data.logs; $('#logDialog').showModal(); }catch(err){toast(err.message,true);} }
-function initDocker(){ loadDocker(); }
+async function removeContainer(id, name){ const typed = prompt(`Ketik nama container untuk hapus permanen:\n${name}`); if (typed !== name) return; await dockerAction(id, 'remove'); }
+async function removeDockerImage(image){ const typed = prompt(`Ketik image untuk hapus:\n${image}`); if (typed !== image) return; try{ await api('/api/docker/images/remove',{method:'POST',body:JSON.stringify({image, force:true})}); toast('Image removed'); loadDocker(); }catch(err){toast(err.message,true);} }
+async function pullDockerImage(e){ e.preventDefault(); const image = new FormData(e.currentTarget).get('image'); try{ await api('/api/docker/images/pull',{method:'POST',body:JSON.stringify({image})}); toast(`Pulled ${image}`); e.currentTarget.reset(); loadDocker(); }catch(err){toast(err.message,true);} }
+async function createDockerContainer(e){ e.preventDefault(); const body = Object.fromEntries(new FormData(e.currentTarget)); try{ const result = await api('/api/docker/containers',{method:'POST',body:JSON.stringify(body)}); toast(`Container created: ${result.name}`); $('#dockerCreateDialog')?.close(); e.currentTarget.reset(); loadDocker(); }catch(err){toast(err.message,true);} }
+function initDocker(){ loadDocker(); $('#dockerPullForm')?.addEventListener('submit', pullDockerImage); $('#dockerCreateForm')?.addEventListener('submit', createDockerContainer); }
 
 async function loadSettings(){
   try{ const s=await api('/api/settings'); $('[name=server_name]').value=s.general.server_name; $('[name=timezone]').value=s.general.timezone; $('[name=stats_interval_ms]').value=s.monitoring.stats_interval_ms; setText('#settingsInterval', `${s.monitoring.stats_interval_ms}ms`); const users=await api('/api/users').catch(()=>({users:[]})); setText('#settingsUserCount', String(users.users.length)); $('#userList').innerHTML=users.users.map(u=>`<div class="list-item"><span>${icon('person')}${esc(u.username)}</span><strong>${esc(u.role)}</strong></div>`).join(''); }catch(err){toast(err.message,true);}
@@ -345,6 +375,93 @@ async function loadSecurity(){
 }
 function initSecurity(){ loadSecurity(); }
 
+async function loadDatabase(){
+  try {
+    const data = await api('/api/database/status');
+    setText('#databaseAvailable', data.available ? 'Detected' : 'Not found');
+    setText('#databaseHostControl', data.host_control ? 'Enabled' : 'Disabled');
+    setText('#databaseNotice', data.enabled ? 'Database module enabled' : 'Database module disabled');
+    const rows = $('#databaseRows');
+    if (rows) rows.innerHTML = (data.services || []).map(db => `<tr><td><strong>${esc(db.label)}</strong><br><small class="mono">${esc(db.binary || 'not installed')}</small></td><td><span class="status-pill ${db.installed ? 'success' : 'warning'}">${db.installed ? 'yes' : 'no'}</span></td><td>${esc(db.service_state || '-')}</td><td class="mono">${esc(db.version || '-')}</td><td><code>${esc(db.install_hint || '-')}</code></td><td>${['mysql','mariadb','postgresql'].includes(db.key) ? `<button class="ghost" onclick="databaseAction('${esc(db.key)}','restart')">${icon('restart_alt')}Restart</button><button class="ghost" onclick="databaseAction('${esc(db.key)}','start')">${icon('play_circle')}Start</button><button class="ghost" onclick="databaseAction('${esc(db.key)}','stop')">${icon('stop_circle')}Stop</button>` : '<span class="notice">embedded</span>'}</td></tr>`).join('');
+    const notes = $('#databaseNotes');
+    if (notes && data.notes?.length) notes.innerHTML = `<span class="material-symbols-outlined">info</span><div><strong>Database module notes</strong>${data.notes.map(note => `<small>${esc(note)}</small>`).join('')}<code>Next: create database/user, SQL import/export, containerized DB deploy.</code></div>`;
+  } catch(err) { toast(err.message, true); }
+}
+
+function databaseCredentials(){
+  const form = $('#databaseConnectionForm');
+  return form ? Object.fromEntries(new FormData(form)) : {engine:'mysql', username:'root'};
+}
+
+async function databaseList(e){
+  e?.preventDefault();
+  const out = $('#databaseOutput');
+  if (out) out.textContent = 'Loading databases...';
+  try {
+    const data = await api('/api/database/list', {method:'POST', body:JSON.stringify(databaseCredentials())});
+    if (out) out.textContent = `${data.stdout || ''}${data.stderr ? `\n${data.stderr}` : ''}\n[exit ${data.code}]`;
+    const list = $('#databaseList');
+    if (list) list.innerHTML = data.databases.length ? data.databases.map(name => `<div class="list-item"><span>${icon('database')}${esc(name)}</span><strong><button class="ghost" onclick="exportDatabase('${esc(name)}')">${icon('download')}Export</button></strong></div>`).join('') : '<div class="list-item"><span>No database returned.</span><strong>-</strong></div>';
+  } catch(err) { if (out) out.textContent = err.message; toast(err.message, true); }
+}
+
+async function createDatabase(e){
+  e.preventDefault();
+  const body = {...databaseCredentials(), ...Object.fromEntries(new FormData(e.currentTarget))};
+  try { const result = await api('/api/database/create', {method:'POST', body:JSON.stringify(body)}); toast(result.success ? `Database created: ${result.database}` : 'Create database failed', !result.success); databaseList(); }
+  catch(err){ toast(err.message, true); }
+}
+
+async function createDatabaseUser(e){
+  e.preventDefault();
+  const body = {...databaseCredentials(), ...Object.fromEntries(new FormData(e.currentTarget))};
+  try { const result = await api('/api/database/user', {method:'POST', body:JSON.stringify(body)}); toast(result.success ? `User created: ${result.username}` : 'Create user failed', !result.success); }
+  catch(err){ toast(err.message, true); }
+}
+
+async function importDatabase(e){
+  e.preventDefault();
+  const fd = new FormData(e.currentTarget);
+  Object.entries(databaseCredentials()).forEach(([k,v]) => fd.set(k, v));
+  const out = $('#databaseOutput');
+  if (out) out.textContent = 'Importing SQL...';
+  try {
+    const res = await fetch('/api/database/import', {method:'POST', body:fd});
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (out) out.textContent = `${data.stdout || ''}${data.stderr ? `\n${data.stderr}` : ''}\n[exit ${data.code}]`;
+    toast(data.success ? 'SQL imported' : 'Import failed', !data.success);
+  } catch(err) { if (out) out.textContent = err.message; toast(err.message, true); }
+}
+
+async function exportDatabase(name){
+  const body = {...databaseCredentials(), database:name};
+  try {
+    const res = await fetch('/api/database/export', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || `HTTP ${res.status}`); }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${name}.sql`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported ${name}`);
+  } catch(err) { toast(err.message, true); }
+}
+
+async function exportDatabaseFromForm(e){ e.preventDefault(); const name = new FormData(e.currentTarget).get('database'); if (name) exportDatabase(name); }
+
+async function databaseAction(service, action){
+  try {
+    const result = await api('/api/database/action', {method:'POST', body:JSON.stringify({service, action})});
+    toast(result.success ? `${service} ${action} sent` : (result.stderr || 'Database action failed'), !result.success);
+    loadDatabase();
+  } catch(err) { toast(err.message, true); }
+}
+
+function initDatabase(){ loadDatabase(); $('#databaseConnectionForm')?.addEventListener('submit', databaseList); $('#databaseCreateForm')?.addEventListener('submit', createDatabase); $('#databaseUserForm')?.addEventListener('submit', createDatabaseUser); $('#databaseImportForm')?.addEventListener('submit', importDatabase); $('#databaseExportForm')?.addEventListener('submit', exportDatabaseFromForm); }
+
 function installHintHtml(status, label) {
   if (status.installed) return `<div class="empty-inline"><span class="material-symbols-outlined">check_circle</span><strong>${esc(label)} detected</strong><small>${esc(status.pm2_path || status.nginx_path || '')}</small></div>`;
   return `<div class="install-copy"><span class="material-symbols-outlined">download</span><div><strong>${esc(label)} not installed</strong><small>Linux install helper is available. Run this on the server during deployment:</small><code>${esc(status.install_command || 'sudo bash scripts/install-runtime-tools.sh')}</code></div></div>`;
@@ -372,17 +489,45 @@ async function installPM2(){
 
 async function loadNginx(){
   try {
-    const [status, test] = await Promise.all([api('/api/nginx/status'), api('/api/nginx/test').catch(()=>({success:false, stderr:'Unable to test config'}))]);
+    const [status, test, siteData] = await Promise.all([api('/api/nginx/status'), api('/api/nginx/test').catch(()=>({success:false, stderr:'Unable to test config'})), api('/api/nginx/sites').catch(()=>({sites:[]}))]);
     setText('#nginxInstalled', status.installed ? 'Yes' : 'No');
     setText('#nginxState', status.service_state || 'unknown');
     setText('#nginxTestState', test.success ? 'Valid' : 'Check');
     $('#nginxInstallHint').innerHTML = installHintHtml(status, 'Nginx');
     $('#nginxTestOutput').textContent = [status.version, test.stdout, test.stderr].filter(Boolean).join('\n') || 'No output.';
     $('#nginxConfigPaths').innerHTML = (status.config_paths || []).map(item => `<div class="list-item"><span>${icon(item.type === 'dir' ? 'folder' : 'description')}${esc(item.path)}</span><strong>${item.exists ? 'exists' : 'missing'}</strong></div>`).join('');
+    const rows = $('#nginxSiteRows');
+    if (rows) rows.innerHTML = siteData.sites.length ? siteData.sites.map(site => `<tr><td class="mono">${esc(site.name)}</td><td>${esc((site.server_names || []).join(', ') || '-')}</td><td class="mono">${esc((site.proxy_passes || []).join(', ') || '-')}</td><td><span class="status-pill ${site.ssl ? 'success' : 'warning'}">${site.ssl ? 'yes' : 'no'}</span></td><td><span class="status-pill ${site.enabled ? 'success' : 'warning'}">${site.enabled ? 'enabled' : 'disabled'}</span></td><td><button class="ghost" onclick="editNginxSite('${esc(site.name)}')">${icon('edit')}Edit</button><button class="ghost" onclick="nginxSiteAction('${esc(site.name)}','${site.enabled ? 'disable' : 'enable'}')">${icon(site.enabled ? 'toggle_off' : 'toggle_on')}${site.enabled ? 'Disable' : 'Enable'}</button><button class="ghost" onclick="issueNginxSsl('${esc((site.server_names || [site.name])[0])}')">${icon('lock')}SSL</button><button class="ghost danger" onclick="deleteNginxSite('${esc(site.name)}')">${icon('delete')}Delete</button></td></tr>`).join('') : '<tr><td colspan="6">No sites found.</td></tr>';
   } catch(err) { toast(err.message, true); }
 }
 async function nginxAction(action){ try{ const result = await api('/api/nginx/action',{method:'POST',body:JSON.stringify({action})}); toast(result.success ? `Nginx ${action} sent` : (result.stderr || 'Nginx action failed'), !result.success); loadNginx(); }catch(err){toast(err.message,true);} }
-function initNginx(){ loadNginx(); }
+function initNginx(){ loadNginx(); $('#nginxSiteForm')?.addEventListener('submit', createNginxSite); $('#nginxEditForm')?.addEventListener('submit', saveNginxSite); $('#nginxSslForm')?.addEventListener('submit', submitNginxSsl); }
+
+async function createNginxSite(e){
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.currentTarget));
+  body.ssl_redirect = Boolean(body.ssl_redirect);
+  try { const result = await api('/api/nginx/sites/proxy',{method:'POST',body:JSON.stringify(body)}); toast(`Site created: ${result.name}`); $('#nginxSiteDialog')?.close(); e.currentTarget.reset(); loadNginx(); }
+  catch(err){ toast(err.message,true); }
+}
+
+async function editNginxSite(name){
+  try { const data = await api(`/api/nginx/sites/${encodeURIComponent(name)}`); $('#nginxEditTitle').textContent = `Edit ${data.name}`; $('#nginxEditForm [name=name]').value = data.name; $('#nginxEditContent').value = data.content; $('#nginxEditDialog')?.showModal(); }
+  catch(err){ toast(err.message,true); }
+}
+
+async function saveNginxSite(e){
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.currentTarget));
+  body.enable = true;
+  try { await api('/api/nginx/sites',{method:'POST',body:JSON.stringify(body)}); toast('Site saved and config valid'); $('#nginxEditDialog')?.close(); loadNginx(); }
+  catch(err){ toast(err.message,true); }
+}
+
+async function nginxSiteAction(name, action){ try{ await api(`/api/nginx/sites/${encodeURIComponent(name)}/action`,{method:'POST',body:JSON.stringify({action})}); toast(`${name} ${action}`); loadNginx(); }catch(err){toast(err.message,true);} }
+async function deleteNginxSite(name){ const typed = prompt(`Ketik nama site untuk delete:\n${name}`); if (typed !== name) return; nginxSiteAction(name, 'delete'); }
+async function issueNginxSsl(domain){ if (!domain) return; const ok = confirm(`Issue SSL untuk ${domain}? Domain harus sudah mengarah ke server ini.`); if (!ok) return; try{ const result = await api('/api/nginx/ssl',{method:'POST',body:JSON.stringify({domain})}); toast(result.success ? `SSL issued for ${domain}` : (result.stderr || 'SSL failed'), !result.success); loadNginx(); }catch(err){toast(err.message,true);} }
+async function submitNginxSsl(e){ e.preventDefault(); const domain = new FormData(e.currentTarget).get('domain'); await issueNginxSsl(domain); $('#nginxSslDialog')?.close(); }
 
 async function installNginx(){
   const out = $('#nginxInstallOutput');
@@ -434,7 +579,64 @@ async function loadTerminalStatus(){
   } catch(err) { toast(err.message, true); }
 }
 
+let terminalSocket = null;
+let terminalLive = false;
+
+function appendTerminal(data){
+  const output = $('#terminalOutput');
+  if (!output) return;
+  output.textContent += data;
+  output.scrollTop = output.scrollHeight;
+}
+
+function terminalWrite(data){
+  if (terminalSocket && terminalLive) {
+    terminalSocket.emit('terminal_input', {data});
+    return true;
+  }
+  return false;
+}
+
+function startInteractiveTerminal(){
+  if (typeof io !== 'function') return;
+  const output = $('#terminalOutput');
+  if (output) output.textContent = 'Opening interactive PTY session...\r\n';
+  terminalSocket = io('/terminal', {transports: ['websocket', 'polling']});
+  terminalSocket.on('connect', () => {
+    terminalLive = true;
+    terminalSocket.emit('terminal_start', {rows: 34, cols: 120});
+    setText('#terminalSessionTitle', 'root@interactive-pty');
+    const pill = $('#terminalStatusPill');
+    if (pill) { pill.textContent = 'live'; pill.className = 'status-chip success'; }
+  });
+  terminalSocket.on('terminal_output', payload => appendTerminal(payload.data || ''));
+  terminalSocket.on('terminal_status', payload => {
+    terminalLive = Boolean(payload.connected);
+    const pill = $('#terminalStatusPill');
+    if (pill) { pill.textContent = terminalLive ? 'live' : 'closed'; pill.className = `status-chip ${terminalLive ? 'success' : 'warning'}`; }
+  });
+  terminalSocket.on('connect_error', err => {
+    terminalLive = false;
+    appendTerminal(`\r\nSocket error: ${err.message || err}\r\n`);
+  });
+  terminalSocket.on('disconnect', () => {
+    terminalLive = false;
+    appendTerminal('\r\n[terminal disconnected]\r\n');
+  });
+}
+
+function restartTerminalSession(){
+  if (terminalSocket) {
+    terminalSocket.emit('terminal_stop');
+    terminalSocket.disconnect();
+  }
+  terminalSocket = null;
+  terminalLive = false;
+  startInteractiveTerminal();
+}
+
 async function runTerminalCommand(command){
+  if (terminalWrite(`${command}\n`)) return;
   const output = $('#terminalOutput');
   if (output) output.textContent = `$ ${command}\nRunning...`;
   try {
@@ -448,6 +650,7 @@ async function runTerminalCommand(command){
 
 function initTerminal(){
   loadTerminalStatus();
+  startInteractiveTerminal();
   $$('#terminalForm [data-command], [data-command]').forEach(btn => {
     btn.addEventListener('click', () => {
       const command = btn.dataset.command || '';
@@ -469,6 +672,15 @@ function initTerminal(){
     if ($('#terminalReadOnly')?.checked) return;
     const command = $('#terminalCommand')?.value.trim();
     if (command) runTerminalCommand(command);
+    if ($('#terminalCommand')) $('#terminalCommand').value = '';
+  });
+  $('#terminalOutput')?.addEventListener('keydown', e => {
+    if (!terminalLive || $('#terminalReadOnly')?.checked) return;
+    if (e.key === 'Enter') { terminalWrite('\n'); e.preventDefault(); return; }
+    if (e.key === 'Backspace') { terminalWrite('\x7f'); e.preventDefault(); return; }
+    if (e.key === 'Tab') { terminalWrite('\t'); e.preventDefault(); return; }
+    if (e.ctrlKey && e.key.length === 1) { terminalWrite(String.fromCharCode(e.key.toUpperCase().charCodeAt(0) - 64)); e.preventDefault(); return; }
+    if (!e.ctrlKey && !e.metaKey && e.key.length === 1) { terminalWrite(e.key); e.preventDefault(); }
   });
   renderCustomTerminalCommands();
   $('#saveTerminalCommands')?.addEventListener('click', e => {

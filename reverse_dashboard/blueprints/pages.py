@@ -42,6 +42,12 @@ def storage_page():
     return render_template("storage.html", active="storage")
 
 
+@bp.get("/database")
+@permission_required("database", "view")
+def database_page():
+    return render_template("database.html", active="database")
+
+
 @bp.get("/security")
 @permission_required("security", "view")
 def security_page():

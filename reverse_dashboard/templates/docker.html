@@ -8,13 +8,22 @@
       <h1>Docker</h1>
       <p class="page-subtitle">Monitor containers, inspect exposed ports, restart workloads, and review logs.</p>
     </div>
-    <button class="ghost" onclick="loadDocker()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+    <div class="actions">
+      <button class="ghost" onclick="document.getElementById('dockerCreateDialog').showModal()"><span class="material-symbols-outlined">add_box</span>New container</button>
+      <button class="ghost" onclick="loadDocker()"><span class="material-symbols-outlined">refresh</span>Refresh</button>
+    </div>
   </header>
 
   <section class="summary-strip" aria-label="Docker summary">
     <article class="mini-stat"><span class="material-symbols-outlined">deployed_code</span><div><strong id="dockerSummaryStatus">Checking</strong><small>Docker connection</small></div></article>
     <article class="mini-stat"><span class="material-symbols-outlined">view_list</span><div><strong id="dockerContainerCount">-</strong><small>Visible containers</small></div></article>
+    <article class="mini-stat"><span class="material-symbols-outlined">inventory_2</span><div><strong id="dockerImageCount">-</strong><small>Local images</small></div></article>
     <article class="mini-stat"><span class="material-symbols-outlined">verified_user</span><div><strong>Audited</strong><small>Actions logged</small></div></article>
+  </section>
+
+  <section class="card data-panel">
+    <div class="panel-heading"><span class="material-symbols-outlined">download</span><h2>Pull image</h2></div>
+    <form id="dockerPullForm" class="terminal-form port-form"><input name="image" class="mono" placeholder="nginx:latest" required><button class="primary"><span class="material-symbols-outlined">download</span>Pull</button></form>
   </section>
 
   <section class="docker-card-grid" id="dockerCardGrid" aria-label="Container cards"></section>
@@ -26,7 +35,18 @@
     </div>
     <div class="table-wrap"><table><thead><tr><th>Name</th><th>Image</th><th>Status</th><th>Ports</th><th>Actions</th></tr></thead><tbody id="dockerRows"></tbody></table></div>
   </section>
+
+  <section class="card data-panel">
+    <div class="toolbar panel-toolbar"><div class="toolbar-title"><span class="material-symbols-outlined">inventory_2</span><strong>Images</strong></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>ID</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead><tbody id="dockerImageRows"></tbody></table></div>
+  </section>
+
+  <section class="card data-panel">
+    <div class="toolbar panel-toolbar"><div class="toolbar-title"><span class="material-symbols-outlined">hub</span><strong>Networks</strong></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>ID</th><th>Driver</th><th>Scope</th><th>Containers</th></tr></thead><tbody id="dockerNetworkRows"></tbody></table></div>
+  </section>
 </section>
 <dialog id="logDialog"><form method="dialog" class="editor-box"><h2>Container logs</h2><pre id="logContent" class="log-box"></pre><button class="primary"><span class="material-symbols-outlined">close</span>Close</button></form></dialog>
+<dialog id="dockerCreateDialog"><form id="dockerCreateForm" class="editor-box"><h2>Create container</h2><p class="page-subtitle">Format ports: <code>8080:80/tcp</code>. Format env: <code>KEY=value</code>. Format volume: <code>/host:/container:rw</code>.</p><input name="image" class="mono" placeholder="image, contoh nginx:latest" required><input name="name" class="mono" placeholder="container name optional"><textarea name="ports" placeholder="8080:80/tcp"></textarea><textarea name="env" placeholder="ENV=value"></textarea><textarea name="volumes" placeholder="/host/path:/container/path:rw"></textarea><input name="network" class="mono" placeholder="network optional"><select name="restart_policy"><option value="no">no restart policy</option><option value="unless-stopped">unless-stopped</option><option value="always">always</option><option value="on-failure">on-failure</option></select><input name="command" class="mono" placeholder="command optional"><div class="actions"><button class="ghost" type="button" onclick="document.getElementById('dockerCreateDialog').close()"><span class="material-symbols-outlined">close</span>Cancel</button><button class="primary"><span class="material-symbols-outlined">rocket_launch</span>Create</button></div></form></dialog>
 {% endblock %}
 {% block scripts %}<script>initDocker();</script>{% endblock %}

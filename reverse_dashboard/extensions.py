@@ -5,6 +5,7 @@ from flask import current_app, g, session
 from .services.audit_service import AuditService
 from .services.auth_service import AuthService
 from .services.docker_service import DockerService
+from .services.database_service import DatabaseService
 from .services.file_service import FileService
 from .services.json_store import JsonStore
 from .services.settings_service import SettingsService
@@ -46,6 +47,12 @@ def docker_service() -> DockerService:
     if "docker_service" not in g:
         g.docker_service = DockerService()
     return g.docker_service
+
+
+def database_service() -> DatabaseService:
+    if "database_service" not in g:
+        g.database_service = DatabaseService(current_app.config["ENABLE_DATABASE"], current_app.config["ENABLE_HOST_CONTROL"], current_app.config["DATA_DIR"])
+    return g.database_service
 
 
 def settings_service() -> SettingsService:

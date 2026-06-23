@@ -26,6 +26,7 @@ class Config:
     # Explicitly allow dangerous host-control APIs only when enabled.
     ENABLE_HOST_CONTROL = os.environ.get("ENABLE_HOST_CONTROL", "0") == "1"
     ENABLE_DOCKER = os.environ.get("ENABLE_DOCKER", "1") == "1"
+    ENABLE_DATABASE = os.environ.get("ENABLE_DATABASE", "1") == "1"
     ENABLE_PM2 = os.environ.get("ENABLE_PM2", "1") == "1"
     ENABLE_NGINX = os.environ.get("ENABLE_NGINX", "1") == "1"
     ENABLE_BACKUP = os.environ.get("ENABLE_BACKUP", "1") == "1"

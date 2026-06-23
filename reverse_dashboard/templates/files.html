@@ -28,6 +28,7 @@
       <div class="toolbar-actions">
         <button class="ghost" id="upBtn"><span class="material-symbols-outlined">arrow_upward</span>Up</button>
         {% if files_writable %}
+        <button class="ghost" onclick="document.getElementById('uploadDialog').showModal()"><span class="material-symbols-outlined">upload_file</span>Upload</button>
         <button class="ghost" onclick="newFolder()"><span class="material-symbols-outlined">create_new_folder</span>New folder</button>
         <button class="ghost" onclick="newFile()"><span class="material-symbols-outlined">note_add</span>New file</button>
         {% else %}
@@ -40,5 +41,8 @@
 </section>
 
 <dialog id="editor"><form method="dialog" class="editor-box"><h2 id="editorTitle">Editor</h2><textarea id="editorContent" {{ '' if files_writable else 'readonly' }}></textarea><div class="actions"><button class="ghost"><span class="material-symbols-outlined">close</span>Close</button>{% if files_writable %}<button class="primary" value="save" id="saveEditor"><span class="material-symbols-outlined">save</span>Save</button>{% endif %}</div></form></dialog>
+{% if files_writable %}
+<dialog id="uploadDialog"><form id="uploadForm" class="editor-box"><h2>Upload files</h2><p class="page-subtitle">Upload satu atau banyak file ke folder yang sedang dibuka.</p><input id="uploadFiles" name="files" type="file" multiple required><label class="check-row"><input name="overwrite" type="checkbox" value="1">Overwrite file dengan nama sama</label><div class="actions"><button class="ghost" type="button" onclick="document.getElementById('uploadDialog').close()"><span class="material-symbols-outlined">close</span>Cancel</button><button class="primary"><span class="material-symbols-outlined">upload_file</span>Upload</button></div></form></dialog>
+{% endif %}
 {% endblock %}
 {% block scripts %}<script>initFiles();</script>{% endblock %}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, jsonify, request, send_file, session
 
-from ..extensions import audit_service, auth_service, backup_service, firewall_service, nginx_service, pm2_service, system_service, terminal_service
+from ..extensions import audit_service, auth_service, backup_service, database_service, firewall_service, nginx_service, pm2_service, system_service, terminal_service
 from ..security import login_required, permission_required
 
 bp = Blueprint("api", __name__)
@@ -78,6 +78,86 @@ def storage():
 @permission_required("security", "view")
 def security_summary():
     return jsonify(system_service().security_summary(auth_service().load()))
+
+
+@bp.get("/database/status")
+@permission_required("database", "view")
+def database_status():
+    return jsonify(database_service().status())
+
+
+@bp.post("/database/action")
+@permission_required("database", "full")
+def database_action():
+    data = request.get_json(silent=True) or {}
+    service = str(data.get("service", ""))
+    action = str(data.get("action", ""))
+    try:
+        result = database_service().action(service, action)
+        audit_service().log("DATABASE_ACTION", session.get("username", "unknown"), request.remote_addr or "unknown", f"{action} {service}")
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/database/list")
+@permission_required("database", "view")
+def database_list():
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify(database_service().list_databases(data))
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/database/create")
+@permission_required("database", "full")
+def database_create():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = database_service().create_database(data)
+        audit_service().log("DATABASE_CREATE", session.get("username", "unknown"), request.remote_addr or "unknown", f"{data.get('engine')} {data.get('database')}")
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/database/user")
+@permission_required("database", "full")
+def database_user():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = database_service().create_user(data)
+        audit_service().log("DATABASE_USER_CREATE", session.get("username", "unknown"), request.remote_addr or "unknown", f"{data.get('engine')} {data.get('new_username')}")
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/database/import")
+@permission_required("database", "full")
+def database_import():
+    upload = request.files.get("file")
+    if not upload:
+        return jsonify({"error": "File SQL wajib diupload"}), 400
+    try:
+        result = database_service().import_database(request.form.to_dict(), upload.filename or "import.sql", upload.stream)
+        audit_service().log("DATABASE_IMPORT", session.get("username", "unknown"), request.remote_addr or "unknown", f"{request.form.get('engine')} {request.form.get('database')}")
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/database/export")
+@permission_required("database", "view")
+def database_export():
+    data = request.get_json(silent=True) or {}
+    try:
+        path = database_service().export_database(data)
+        audit_service().log("DATABASE_EXPORT", session.get("username", "unknown"), request.remote_addr or "unknown", f"{data.get('engine')} {data.get('database')}")
+        return send_file(path, as_attachment=True, download_name=path.name)
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @bp.get("/audit")
@@ -167,6 +247,78 @@ def nginx_install():
     result = nginx_service().install()
     audit_service().log("NGINX_INSTALL", session.get("username", "unknown"), request.remote_addr or "unknown", str(result.get("code")))
     return jsonify(result)
+
+
+@bp.get("/nginx/sites")
+@permission_required("nginx", "view")
+def nginx_sites():
+    return jsonify({"sites": nginx_service().list_sites()})
+
+
+@bp.get("/nginx/sites/<name>")
+@permission_required("nginx", "view")
+def nginx_site(name: str):
+    try:
+        return jsonify(nginx_service().get_site(name))
+    except (ValueError, FileNotFoundError) as exc:
+        return jsonify({"error": str(exc)}), 404
+
+
+@bp.post("/nginx/sites")
+@permission_required("nginx", "full")
+def nginx_site_save():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = nginx_service().save_site(str(data.get("name", "")), str(data.get("content", "")), bool(data.get("enable", True)))
+        audit_service().log("NGINX_SITE_SAVE", session.get("username", "unknown"), request.remote_addr or "unknown", str(data.get("name", "")))
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/nginx/sites/proxy")
+@permission_required("nginx", "full")
+def nginx_site_proxy():
+    data = request.get_json(silent=True) or {}
+    try:
+        result = nginx_service().create_proxy_site(str(data.get("domain", "")), str(data.get("upstream", "")), str(data.get("root", "")), bool(data.get("ssl_redirect", False)))
+        audit_service().log("NGINX_SITE_CREATE_PROXY", session.get("username", "unknown"), request.remote_addr or "unknown", f"{data.get('domain')} -> {data.get('upstream')}")
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/nginx/sites/<name>/action")
+@permission_required("nginx", "full")
+def nginx_site_action(name: str):
+    data = request.get_json(silent=True) or {}
+    action = str(data.get("action", ""))
+    try:
+        if action == "enable":
+            result = nginx_service().enable_site(name)
+        elif action == "disable":
+            result = nginx_service().disable_site(name)
+        elif action == "delete":
+            result = nginx_service().delete_site(name)
+        else:
+            return jsonify({"error": "Action site tidak valid"}), 400
+        audit_service().log("NGINX_SITE_ACTION", session.get("username", "unknown"), request.remote_addr or "unknown", f"{action} {name}")
+        return jsonify(result)
+    except (ValueError, PermissionError, FileNotFoundError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@bp.post("/nginx/ssl")
+@permission_required("nginx", "full")
+def nginx_ssl():
+    data = request.get_json(silent=True) or {}
+    domain = str(data.get("domain", ""))
+    try:
+        result = nginx_service().issue_ssl(domain)
+        audit_service().log("NGINX_SSL", session.get("username", "unknown"), request.remote_addr or "unknown", domain)
+        return jsonify(result)
+    except (ValueError, PermissionError, RuntimeError) as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @bp.get("/backup/status")

@@ -16,6 +16,8 @@ def create_app(config_object=Config) -> Flask:
 
     CORS(app, supports_credentials=True)
     socketio.init_app(app)
+    from .terminal_socket import register_terminal_socket
+    register_terminal_socket(socketio)
 
     from .blueprints.auth import bp as auth_bp
     from .blueprints.pages import bp as pages_bp

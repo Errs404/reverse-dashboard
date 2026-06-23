@@ -4,6 +4,7 @@ import mimetypes
 import os
 import shutil
 from pathlib import Path
+from typing import BinaryIO
 
 from .system_service import bytes_human
 
@@ -95,6 +96,24 @@ class FileService:
             raise IsADirectoryError("Target bukan file")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
+
+    def save_upload(self, requested_dir: str, filename: str, stream: BinaryIO, overwrite: bool = False) -> Path:
+        safe_name = Path(filename or "").name.strip()
+        if not safe_name or safe_name in {".", ".."}:
+            raise ValueError("Nama file upload tidak valid")
+        dest_dir = self.resolve(requested_dir)
+        if not dest_dir.exists():
+            dest_dir.mkdir(parents=True, exist_ok=True)
+        if not dest_dir.is_dir():
+            raise NotADirectoryError("Target upload bukan folder")
+        target = (dest_dir / safe_name).resolve()
+        if not self._is_within_root(target):
+            raise PermissionError("Target upload di luar root file browser")
+        if target.exists() and not overwrite:
+            raise FileExistsError(f"File sudah ada: {safe_name}")
+        with target.open("wb") as fh:
+            shutil.copyfileobj(stream, fh)
+        return target
 
     def mutate(self, action: str, path_value: str, **kwargs) -> None:
         path = self.resolve(path_value)
